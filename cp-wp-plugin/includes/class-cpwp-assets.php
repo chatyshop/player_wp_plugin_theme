@@ -42,6 +42,14 @@ final class CPWP_Assets {
 				'progress' => (bool) CPWP_Settings::get( 'enable_continue_watching' ),
 			),
 		) );
+		wp_localize_script( 'cpwp-public', 'cpwpCommentReactions', array(
+			'base' => esc_url_raw( rest_url( 'cpwp/v1/comment-reactions/' ) ),
+			'nonce' => wp_create_nonce( 'wp_rest' ),
+			'enabled' => (bool) CPWP_Settings::get( 'enable_comment_reactions' ),
+			'loggedIn' => is_user_logged_in(),
+			'loginUrl' => CPWP_Users::login_url( is_singular() ? get_permalink() : home_url( '/' ) ),
+		) );
+		wp_localize_script( 'cpwp-public', 'cpwpPublic', array( 'restUrl' => esc_url_raw( rest_url( 'cpwp/v1/' ) ), 'nonce' => wp_create_nonce( 'wp_rest' ) ) );
 		if ( CPWP_Settings::get( 'enable_analytics' ) ) wp_localize_script(
 			'cpwp-public',
 			'cpwpAnalytics',
@@ -54,7 +62,7 @@ final class CPWP_Assets {
 
 	public static function enqueue_admin_assets( $hook ) {
 		$screen = get_current_screen();
-		if ( ! $screen || ( 'cp_video' !== $screen->post_type && ! in_array( $screen->id, array( 'cp_video_page_cpwp-dashboard', 'cp_video_page_cpwp-settings', 'cp_video_page_cpwp-users' ), true ) ) ) {
+		if ( ! $screen || ( 'cp_video' !== $screen->post_type && ! in_array( $screen->id, array( 'cp_video_page_cpwp-dashboard', 'cp_video_page_cpwp-settings', 'cp_video_page_cpwp-users', 'cp_video_page_cpwp-comment-reactions', 'cp_video_page_cpwp-moderation', 'cp_video_page_cpwp-engagement', 'cp_video_page_cpwp-bulk-videos', 'cp_video_page_cpwp-creator-monetization' ), true ) ) ) {
 			return;
 		}
 

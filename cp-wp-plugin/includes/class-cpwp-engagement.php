@@ -3,6 +3,20 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 final class CPWP_Engagement {
+	public static function register_menu() { add_submenu_page( 'edit.php?post_type=cp_video', 'Engagement', 'Engagement', 'manage_options', 'cpwp-engagement', array( __CLASS__, 'render_admin' ) ); }
+
+	public static function render_admin() {
+		if ( ! empty( $_POST['cpwp_clear_engagement'] ) && check_admin_referer( 'cpwp_clear_engagement' ) ) {
+			$user_id = absint( $_POST['user_id'] ); foreach ( array( '_cpwp_reactions', '_cpwp_favorites', '_cpwp_watch_later', '_cpwp_progress', '_cpwp_watch_history', '_cpwp_playlists' ) as $key ) delete_user_meta( $user_id, $key );
+			CPWP_Moderation::log( 'engagement_cleared', get_current_user_id(), $user_id );
+		}
+		$users = get_users( array( 'number' => 200 ) );
+		echo '<div class="wrap"><h1>Engagement Administration</h1><table class="widefat striped"><thead><tr><th>User</th><th>Reactions</th><th>Favorites</th><th>Watch Later</th><th>Progress</th><th>Playlists</th><th>Action</th></tr></thead><tbody>';
+		foreach ( $users as $user ) { $counts = array(); foreach ( array( '_cpwp_reactions', '_cpwp_favorites', '_cpwp_watch_later', '_cpwp_progress', '_cpwp_playlists' ) as $key ) $counts[] = count( (array) get_user_meta( $user->ID, $key, true ) );
+			echo '<tr><td>' . esc_html( $user->display_name ) . '</td>'; foreach ( $counts as $count ) echo '<td>' . esc_html( $count ) . '</td>'; echo '<td><form method="post">'; wp_nonce_field( 'cpwp_clear_engagement' ); echo '<input type="hidden" name="user_id" value="' . esc_attr( $user->ID ) . '"><button class="button" name="cpwp_clear_engagement" value="1">Clear data</button></form></td></tr>'; }
+		echo '</tbody></table></div>';
+	}
+
 	public static function register_routes() {
 		register_rest_route( 'cpwp/v1', '/engagement/(?P<post_id>\d+)', array( array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'state' ), 'permission_callback' => '__return_true' ), array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'update' ), 'permission_callback' => array( __CLASS__, 'logged_in' ) ) ) );
 		register_rest_route( 'cpwp/v1', '/library', array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'library' ), 'permission_callback' => array( __CLASS__, 'logged_in' ) ) );
@@ -68,9 +82,14 @@ final class CPWP_Engagement {
 	private static function progress( $user_id, $post_id, $request ) {
 		$map = self::map( $user_id, '_cpwp_progress' );
 		$percent = min( 100, max( 0, (float) $request['percent'] ) );
+		$history = self::map( $user_id, '_cpwp_watch_history' );
+		$history[ $post_id ] = array( 'time' => max( 0, (float) $request['time'] ), 'duration' => max( 0, (float) $request['duration'] ), 'percent' => $percent, 'updated' => time(), 'completed' => $percent >= 95 );
+		uasort( $history, function ( $a, $b ) { return ( $b['updated'] ?? 0 ) <=> ( $a['updated'] ?? 0 ); } );
+		update_user_meta( $user_id, '_cpwp_watch_history', array_slice( $history, 0, 500, true ) );
 		if ( $percent >= 95 ) unset( $map[ $post_id ] ); else $map[ $post_id ] = array( 'time' => max( 0, (float) $request['time'] ), 'duration' => max( 0, (float) $request['duration'] ), 'percent' => $percent, 'updated' => time() );
 		uasort( $map, function ( $a, $b ) { return ( $b['updated'] ?? 0 ) <=> ( $a['updated'] ?? 0 ); } );
 		update_user_meta( $user_id, '_cpwp_progress', array_slice( $map, 0, 100, true ) );
+		if ( class_exists( 'CPWP_Learning' ) ) CPWP_Learning::refresh_certificates( $user_id );
 	}
 
 	private static function playlist( $user_id, $post_id, $request ) {

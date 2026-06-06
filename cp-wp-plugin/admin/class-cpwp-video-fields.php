@@ -74,6 +74,16 @@ final class CPWP_Video_Fields {
 			<h3><?php esc_html_e( 'Transcript', 'cp-wp-plugin' ); ?></h3>
 			<p class="description"><?php esc_html_e( 'The transcript is displayed below the video and included in WordPress search.', 'cp-wp-plugin' ); ?></p>
 			<textarea class="cpwp-transcript" name="_cpwp_transcript" rows="12"><?php echo esc_textarea( get_post_meta( $post->ID, '_cpwp_transcript', true ) ); ?></textarea>
+
+			<h3><?php esc_html_e( 'Per-video monetization overrides', 'cp-wp-plugin' ); ?></h3>
+			<p class="description"><?php esc_html_e( 'Leave a field blank to inherit the global Monetization setting.', 'cp-wp-plugin' ); ?></p>
+			<?php foreach ( array( 'video_above' => 'Above player ad code', 'video_below' => 'Below player ad code', 'video_description' => 'Description ad code', 'player_overlay' => 'Player overlay ad code' ) as $slot => $label ) : ?>
+				<label class="cpwp-ad-field"><span><?php echo esc_html( $label ); ?></span><textarea name="_cpwp_ad_<?php echo esc_attr( $slot ); ?>" rows="5"><?php echo esc_textarea( get_post_meta( $post->ID, '_cpwp_ad_' . $slot, true ) ); ?></textarea></label>
+			<?php endforeach; ?>
+			<div class="cpwp-field-grid">
+				<label><span><?php esc_html_e( 'Pre-roll video URL', 'cp-wp-plugin' ); ?></span><input type="url" name="_cpwp_ad_preroll_url" value="<?php echo esc_attr( get_post_meta( $post->ID, '_cpwp_ad_preroll_url', true ) ); ?>"></label>
+				<label><span><?php esc_html_e( 'Post-roll video URL', 'cp-wp-plugin' ); ?></span><input type="url" name="_cpwp_ad_postroll_url" value="<?php echo esc_attr( get_post_meta( $post->ID, '_cpwp_ad_postroll_url', true ) ); ?>"></label>
+			</div>
 		</div>
 		<script type="text/template" id="cpwp-subtitle-template"><?php self::subtitle_row( '__INDEX__', array() ); ?></script>
 		<script type="text/template" id="cpwp-chapter-template"><?php self::chapter_row( '__INDEX__', array() ); ?></script>
@@ -104,6 +114,8 @@ final class CPWP_Video_Fields {
 		self::save_value( $post_id, '_cpwp_subtitles', self::sanitize_subtitles( isset( $_POST['cpwp_subtitles'] ) ? wp_unslash( $_POST['cpwp_subtitles'] ) : array() ) );
 		self::save_value( $post_id, '_cpwp_chapters', self::sanitize_chapters( isset( $_POST['cpwp_chapters'] ) ? wp_unslash( $_POST['cpwp_chapters'] ) : array() ) );
 		self::save_value( $post_id, '_cpwp_transcript', isset( $_POST['_cpwp_transcript'] ) ? sanitize_textarea_field( wp_unslash( $_POST['_cpwp_transcript'] ) ) : '' );
+		foreach ( array( 'video_above', 'video_below', 'video_description', 'player_overlay' ) as $slot ) self::save_value( $post_id, '_cpwp_ad_' . $slot, CPWP_Monetization::sanitize_code( $_POST['_cpwp_ad_' . $slot] ?? '' ) );
+		foreach ( array( 'preroll', 'postroll' ) as $type ) self::save_value( $post_id, '_cpwp_ad_' . $type . '_url', esc_url_raw( wp_unslash( $_POST['_cpwp_ad_' . $type . '_url'] ?? '' ) ) );
 	}
 
 	private static function render_subtitles( $items ) {

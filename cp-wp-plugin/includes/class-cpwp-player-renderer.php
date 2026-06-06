@@ -40,6 +40,8 @@ final class CPWP_Player_Renderer {
 			'data-muted'          => get_post_meta( $post_id, '_cpwp_muted', true ) || CPWP_Settings::get( 'default_muted' ) ? 'true' : 'false',
 			'data-preload'        => get_post_meta( $post_id, '_cpwp_preload', true ) ?: CPWP_Settings::get( 'default_preload' ),
 			'data-color'          => get_post_meta( $post_id, '_cpwp_accent_color', true ) ?: CPWP_Settings::get( 'accent_color' ),
+			'data-cpwp-preroll'   => CPWP_Settings::get( 'enable_monetization' ) ? CPWP_Monetization::player_url( 'preroll', $post_id ) : '',
+			'data-cpwp-postroll'  => CPWP_Settings::get( 'enable_monetization' ) ? CPWP_Monetization::player_url( 'postroll', $post_id ) : '',
 		);
 
 		$html = '<div';
@@ -56,6 +58,8 @@ final class CPWP_Player_Renderer {
 			$views      = absint( get_post_meta( $post_id, '_cpwp_views', true ) );
 			$categories = get_the_term_list( $post_id, 'category', '', ', ' );
 			$transcript = get_post_meta( $post_id, '_cpwp_transcript', true );
+			$channel_owner = absint( get_post_meta( $post_id, '_cpwp_channel_owner', true ) );
+			$channel = $channel_owner && class_exists( 'CPWP_Channels' ) ? CPWP_Channels::get( $channel_owner ) : array();
 			$meta       = sprintf(
 				'<div class="cpwp-video-meta"><span>%s</span><span>%s</span>%s</div>',
 				esc_html( sprintf( _n( '%s view', '%s views', $views, 'cp-wp-plugin' ), number_format_i18n( $views ) ) ),
@@ -70,7 +74,8 @@ final class CPWP_Player_Renderer {
 			$sharing = CPWP_Settings::get( 'show_sharing' ) ? self::share_controls( $post_id ) : '';
 			$engagement = self::engagement_controls( $post_id );
 			$related = CPWP_Settings::get( 'show_related' ) ? CPWP_Video_Archive::related( $post_id ) : '';
-			return '<div class="cpwp-single-video">' . self::render( $post_id ) . $meta . $engagement . $sharing . '<div class="cpwp-video-description">' . $content . '</div>' . $transcript_html . $related . '</div>';
+			$channel_html = $channel ? '<div class="cpwp-channel-attribution">' . ( ! empty( $channel['logo_url'] ) ? '<img src="' . esc_url( $channel['logo_url'] ) . '" alt="">' : '' ) . '<div><strong>' . esc_html( $channel['name'] ) . '</strong><span>' . esc_html( $channel['description'] ?? '' ) . '</span></div></div>' : '';
+			return '<div class="cpwp-single-video">' . CPWP_Monetization::render( 'video_above', $post_id ) . self::render( $post_id ) . CPWP_Monetization::render( 'video_below', $post_id ) . $meta . $channel_html . $engagement . $sharing . '<div class="cpwp-video-description">' . $content . CPWP_Monetization::render( 'video_description', $post_id ) . '</div>' . $transcript_html . $related . '</div>';
 		}
 
 		return $content;

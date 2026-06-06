@@ -9,6 +9,11 @@ final class CPWP_Dashboard {
 		add_submenu_page( 'edit.php?post_type=cp_video', __( 'CP Dashboard', 'cp-wp-plugin' ), __( 'Dashboard', 'cp-wp-plugin' ), 'edit_posts', 'cpwp-dashboard', array( __CLASS__, 'render' ), 0 );
 		CPWP_Settings::register_menu();
 		CPWP_Users::register_menu();
+		CPWP_Comment_Reactions::register_menu();
+		CPWP_Monetization::register_menu();
+		CPWP_Moderation::register_menu();
+		CPWP_Engagement::register_menu();
+		CPWP_Bulk_Videos::register_menu();
 	}
 
 	public static function render() {

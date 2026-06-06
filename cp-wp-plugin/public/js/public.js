@@ -8,8 +8,36 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     setupAnalytics(element);
     setupProgress(element);
+    setupVideoAds(element);
   });
 });
+
+function setupVideoAds(element) {
+  const video = element.querySelector("video");
+  if (!video || (!element.dataset.cpwpPreroll && !element.dataset.cpwpPostroll)) return;
+  const playAd = (url, done) => {
+    const screen = document.createElement("div");
+    screen.className = "cpwp-player-ad-screen";
+    const ad = document.createElement("video");
+    ad.src = url;
+    ad.controls = true;
+    ad.autoplay = true;
+    screen.appendChild(ad);
+    element.appendChild(screen);
+    const finish = () => { screen.remove(); done(); };
+    ad.addEventListener("ended", finish, { once: true });
+    ad.addEventListener("error", finish, { once: true });
+  };
+  let prePlayed = false;
+  if (element.dataset.cpwpPreroll) video.addEventListener("play", event => {
+    if (prePlayed) return;
+    prePlayed = true;
+    event.preventDefault();
+    video.pause();
+    playAd(element.dataset.cpwpPreroll, () => video.play().catch(() => {}));
+  });
+  if (element.dataset.cpwpPostroll) video.addEventListener("ended", () => playAd(element.dataset.cpwpPostroll, () => {}));
+}
 
 const engagementRequest = async (path, body) => {
   const response = await fetch(`${cpwpEngagement.base}${path}`, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", "X-WP-Nonce": cpwpEngagement.nonce }, body: body ? JSON.stringify(body) : undefined });
@@ -152,3 +180,91 @@ document.addEventListener("click", async (event) => {
     window.setTimeout(() => { copyButton.textContent = original; }, 1600);
   }
 });
+(function () {
+	document.addEventListener('click', async function (event) {
+		var button = event.target.closest('[data-cpwp-report]');
+		if (!button) return;
+		var dialog = document.querySelector('[data-cp-report-dialog]');
+		if (!dialog) return;
+		dialog.querySelector('[data-report-type]').value = button.dataset.cpwpReport;
+		dialog.querySelector('[data-report-target]').value = button.dataset.targetId;
+		dialog.showModal();
+	});
+	document.addEventListener('click', async function (event) {
+		var submit = event.target.closest('[data-report-submit]');
+		if (!submit) return;
+		var dialog = submit.closest('[data-cp-report-dialog]');
+		var reason = dialog.querySelector('[data-report-reason]').value;
+		var details = dialog.querySelector('[data-report-details]').value;
+		if (!reason || !details) return dialog.querySelector('[data-report-message]').textContent = 'Choose a reason and provide details.';
+		submit.disabled = true;
+		var response = await fetch((window.cpwpPublic && cpwpPublic.restUrl ? cpwpPublic.restUrl : '/wp-json/cpwp/v1/') + 'report', {
+			method: 'POST', credentials: 'same-origin',
+			headers: {'Content-Type': 'application/json', 'X-WP-Nonce': window.cpwpPublic ? cpwpPublic.nonce : ''},
+			body: JSON.stringify({type: dialog.querySelector('[data-report-type]').value, target_id: dialog.querySelector('[data-report-target]').value, reason: reason, details: details, evidence_url: dialog.querySelector('[data-report-evidence]').value})
+		});
+		submit.disabled = false;
+		dialog.querySelector('[data-report-message]').textContent = response.ok ? 'Submitted for review.' : 'Could not submit this report.';
+		if (response.ok) window.setTimeout(function () { dialog.close(); }, 900);
+	});
+}());
+(function () {
+	document.addEventListener('click', async function (event) {
+		var button = event.target.closest('[data-cpwp-group-membership]');
+		if (!button) return;
+		if (!window.cpwpEngagement || !cpwpEngagement.loggedIn) return window.location.href = cpwpEngagement.loginUrl;
+		button.disabled = true;
+		var response = await fetch(cpwpPublic.restUrl + 'groups/' + button.dataset.cpwpGroupMembership + '/membership', {method: 'POST', credentials: 'same-origin', headers: {'X-WP-Nonce': cpwpPublic.nonce}});
+		var state = await response.json();
+		if (response.ok) {
+			document.querySelectorAll('[data-cpwp-group-membership="' + button.dataset.cpwpGroupMembership + '"]').forEach(function (item) { item.textContent = state.joined ? 'Leave group' : 'Join group'; });
+			document.querySelectorAll('[data-cpwp-group-count="' + button.dataset.cpwpGroupMembership + '"]').forEach(function (item) { item.textContent = state.members + ' members'; });
+		}
+		button.disabled = false;
+	});
+}());
+(function () {
+	var button = document.querySelector('[data-cpwp-follow-channel]');
+	if (!button || !window.cpwpPublic) return;
+	var owner = button.dataset.cpwpFollowChannel;
+	var endpoint = cpwpPublic.restUrl + 'channels/' + owner + '/follow';
+	var render = function (state) {
+		button.textContent = state.following ? 'Following' : 'Follow';
+		button.classList.toggle('is-following', state.following);
+		var count = document.querySelector('[data-cpwp-subscriber-count]');
+		if (count) count.textContent = state.subscribers;
+		button.dataset.loginUrl = state.loginUrl;
+	};
+	fetch(endpoint, {credentials: 'same-origin', headers: {'X-WP-Nonce': cpwpPublic.nonce}}).then(function (response) { return response.json(); }).then(render).catch(function () {});
+	button.addEventListener('click', function () {
+		if (!window.cpwpEngagement || !cpwpEngagement.loggedIn) return window.location.href = button.dataset.loginUrl || cpwpEngagement.loginUrl;
+		button.disabled = true;
+		fetch(endpoint, {method: 'POST', credentials: 'same-origin', headers: {'X-WP-Nonce': cpwpPublic.nonce}}).then(function (response) { return response.json(); }).then(render).finally(function () { button.disabled = false; });
+	});
+}());
+(function () {
+	document.addEventListener('click', async function (event) {
+		var enroll = event.target.closest('[data-cpwp-enroll-course]');
+		var lesson = event.target.closest('[data-cpwp-complete-lesson]');
+		if (!enroll && !lesson) return;
+		var button = enroll || lesson;
+		button.disabled = true;
+		var path = enroll ? 'learning/enroll/' + enroll.dataset.cpwpEnrollCourse : 'learning/lesson/' + lesson.dataset.cpwpCompleteLesson;
+		var response = await fetch(cpwpPublic.restUrl + path, {method: 'POST', credentials: 'same-origin', headers: {'X-WP-Nonce': cpwpPublic.nonce}});
+		if (response.ok) window.location.reload();
+		else button.disabled = false;
+	});
+	document.addEventListener('submit', async function (event) {
+		var form = event.target.closest('[data-cpwp-quiz]');
+		if (!form) return;
+		event.preventDefault();
+		var answers = {};
+		new FormData(form).forEach(function (value, key) { answers[key.replace('answer-', '')] = Number(value); });
+		var button = form.querySelector('button');
+		button.disabled = true;
+		var response = await fetch(cpwpPublic.restUrl + 'learning/quiz/' + form.dataset.cpwpQuiz, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json', 'X-WP-Nonce': cpwpPublic.nonce}, body: JSON.stringify({answers: answers})});
+		var result = await response.json();
+		form.querySelector('[data-cpwp-quiz-result]').textContent = response.ok ? 'Score: ' + result.score + '% (' + (result.passed ? 'Passed' : 'Try again') + ')' : 'Could not submit quiz.';
+		button.disabled = false;
+	});
+}());

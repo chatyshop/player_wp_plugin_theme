@@ -168,59 +168,30 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 	}
 
-	// 4. Like / Dislike Mock Persistence
-	document.querySelectorAll('.comment-like-btn, .comment-dislike-btn').forEach(btn => {
-		const commentId = btn.getAttribute('data-comment-id');
-		const isLike = btn.classList.contains('comment-like-btn');
-		const storageKey = `comment_${commentId}_${isLike ? 'liked' : 'disliked'}`;
-		const oppositeKey = `comment_${commentId}_${isLike ? 'disliked' : 'liked'}`;
-		
-		const countSpan = btn.querySelector('.like-count');
-		let initialCount = 0;
-		if (isLike && countSpan) {
-			initialCount = (parseInt(commentId) * 17) % 89;
-			countSpan.textContent = initialCount;
+	// 4. Database-backed comment reactions
+	const renderReaction = (actions, state) => {
+		actions.querySelector('.like-count').textContent = state.likes;
+		actions.querySelector('.dislike-count').textContent = state.dislikes;
+		actions.querySelector('.comment-like-btn').classList.toggle('active', state.reaction === 'like');
+		actions.querySelector('.comment-dislike-btn').classList.toggle('active', state.reaction === 'dislike');
+	};
+	document.querySelectorAll('.comment-actions').forEach(actions => {
+		const like = actions.querySelector('.comment-like-btn');
+		if (!like || !window.cpwpCommentReactions?.enabled) return;
+		const commentId = like.dataset.commentId;
+		fetch(cpwpCommentReactions.base + commentId, { headers: { 'X-WP-Nonce': cpwpCommentReactions.nonce } }).then(response => response.json()).then(state => renderReaction(actions, state)).catch(() => {});
+	});
+	document.addEventListener('click', async event => {
+		const button = event.target.closest('.comment-like-btn, .comment-dislike-btn');
+		if (!button) return;
+		if (!cpwpCommentReactions.loggedIn) {
+			window.location.href = cpwpCommentReactions.loginUrl;
+			return;
 		}
-		
-		const hasClicked = localStorage.getItem(storageKey) === 'true';
-		if (hasClicked) {
-			btn.classList.add('active');
-			if (isLike && countSpan) {
-				countSpan.textContent = initialCount + 1;
-			}
-		}
-		
-		btn.addEventListener('click', () => {
-			const oppositeBtn = btn.parentElement.querySelector(isLike ? '.comment-dislike-btn' : '.comment-like-btn');
-			const oppositeActive = oppositeBtn.classList.contains('active');
-			const currentlyActive = btn.classList.contains('active');
-			
-			if (currentlyActive) {
-				localStorage.removeItem(storageKey);
-				btn.classList.remove('active');
-				if (isLike && countSpan) {
-					countSpan.textContent = initialCount;
-				}
-			} else {
-				localStorage.setItem(storageKey, 'true');
-				btn.classList.add('active');
-				if (isLike && countSpan) {
-					countSpan.textContent = initialCount + 1;
-				}
-				
-				if (oppositeActive) {
-					localStorage.removeItem(oppositeKey);
-					oppositeBtn.classList.remove('active');
-					if (!isLike) {
-						const oppCountSpan = oppositeBtn.querySelector('.like-count');
-						if (oppCountSpan) {
-							const oppInitial = (parseInt(commentId) * 17) % 89;
-							oppCountSpan.textContent = oppInitial;
-						}
-					}
-				}
-			}
-		});
+		const reaction = button.classList.contains('comment-like-btn') ? 'like' : 'dislike';
+		const value = button.classList.contains('active') ? '' : reaction;
+		const response = await fetch(cpwpCommentReactions.base + button.dataset.commentId, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cpwpCommentReactions.nonce }, body: JSON.stringify({ reaction: value }) });
+		if (response.ok) renderReaction(button.closest('.comment-actions'), await response.json());
 	});
 });
 </script>

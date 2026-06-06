@@ -47,6 +47,7 @@ if ( $featured->have_posts() ) {
 		</div>
 	</section>
 	<?php endif; ?>
+	<?php if ( class_exists( 'CPWP_Monetization' ) ) echo CPWP_Monetization::render( 'home_hero' ); ?>
 
 	<?php
 	$order = array_filter( array_map( 'sanitize_key', explode( ',', cp_theme_cp_setting( 'home_section_order', 'categories,trending,latest,most_viewed,category_rows,promo' ) ) ) );
@@ -66,6 +67,8 @@ if ( $featured->have_posts() ) {
 		}
 		if ( 'promo' === $section && cp_theme_cp_setting( 'home_show_promo', false ) ) { ?><section class="cp-promo"><div><span class="cp-kicker"><?php esc_html_e( 'Featured', 'cp-theme' ); ?></span><h2><?php echo esc_html( cp_theme_cp_setting( 'home_promo_title' ) ); ?></h2><p><?php echo esc_html( cp_theme_cp_setting( 'home_promo_content' ) ); ?></p></div><?php if ( cp_theme_cp_setting( 'home_promo_url' ) ) : ?><a class="cp-button" href="<?php echo esc_url( cp_theme_cp_setting( 'home_promo_url' ) ); ?>"><?php echo esc_html( cp_theme_cp_setting( 'home_promo_button', 'Learn more' ) ); ?></a><?php endif; ?></section><?php }
 	}
+	if ( class_exists( 'CPWP_Monetization' ) ) echo CPWP_Monetization::render( 'home_grid' );
+	cp_theme_preset_home_sections();
 	?>
 
 	</div><!-- .cp-page-content -->
