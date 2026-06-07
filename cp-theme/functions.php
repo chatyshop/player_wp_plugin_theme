@@ -230,6 +230,10 @@ function cp_theme_body_class( $classes ) {
 add_filter( 'body_class', 'cp_theme_body_class' );
 
 function cp_theme_get_upgrade_url() {
+	if ( class_exists( 'CPWP_Page_Suites' ) && cp_theme_cp_setting( 'enable_pricing_page', false ) ) {
+		return CPWP_Page_Suites::url( 'pricing' );
+	}
+
 	$custom_url = cp_theme_cp_setting( 'subscription_checkout_url', '' );
 	if ( ! empty( $custom_url ) ) {
 		return esc_url( $custom_url );

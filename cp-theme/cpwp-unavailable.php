@@ -19,7 +19,13 @@
 			</p>
 			<div style="display: flex; flex-direction: column; gap: 10px; align-items: center;">
 				<a class="cp-button cp-premium-upgrade-btn" href="<?php echo esc_url( cp_theme_get_upgrade_url() ); ?>" style="width: 100%; max-width: 280px; padding: 12px 24px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; background: linear-gradient(135deg, var(--cp-accent, #6d5dfc) 0%, #a25dfc 100%); border: none; box-shadow: 0 4px 15px rgba(109, 93, 252, 0.35); transition: transform 0.2s, box-shadow 0.2s; color: #fff; text-decoration: none; border-radius: 8px;">
-					<?php esc_html_e( 'Choose a Plan', 'cp-theme' ); ?>
+					<?php 
+						if ( cp_theme_cp_setting( 'enable_pricing_page', false ) ) {
+							esc_html_e( 'View Plans & Pricing', 'cp-theme' );
+						} else {
+							esc_html_e( 'Choose a Plan', 'cp-theme' ); 
+						}
+					?>
 				</a>
 				<?php if ( ! is_user_logged_in() ) : ?>
 					<span style="font-size: 0.85rem; color: var(--cp-muted, #a0aec0); margin-top: 5px;">

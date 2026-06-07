@@ -43,6 +43,7 @@ $recent_videos = get_posts( array( 'post_type' => 'cp_video', 'posts_per_page' =
 			$hero_avatar = get_avatar_url( $hero_post->post_author );
 			$hero_thumb  = get_the_post_thumbnail_url( $hero_post->ID, 'full' );
 			$hero_games  = get_the_terms( $hero_post->ID, 'cp_game' );
+			$hero_can_access = class_exists( 'CPWP_Site_Modules' ) ? CPWP_Site_Modules::can_access_video( $hero_post->ID ) : true;
 		?>
 		<section class="cp-twitch-hero">
 			<div class="cp-twitch-hero-player">
@@ -50,6 +51,12 @@ $recent_videos = get_posts( array( 'post_type' => 'cp_video', 'posts_per_page' =
 				<a href="<?php echo esc_url( get_permalink( $hero_post->ID ) ); ?>" class="cp-twitch-hero-thumb">
 					<img src="<?php echo esc_url( $hero_thumb ); ?>" alt="">
 					<span class="cp-twitch-live-badge"><?php esc_html_e( 'LIVE', 'cp-theme' ); ?></span>
+					<?php if ( ! $hero_can_access ) : ?>
+						<span class="cp-card-lock-badge" style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.78); color: #fff; padding: 4px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; display: flex; align-items: center; gap: 4px; border: 1px solid rgba(255,255,255,0.15); line-height: 1; z-index: 2;">
+							<svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" style="margin-top:-1px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+							<?php esc_html_e( 'LOCKED', 'cp-theme' ); ?>
+						</span>
+					<?php endif; ?>
 				</a>
 				<?php else : ?>
 				<div class="cp-twitch-hero-placeholder">▶</div>
@@ -119,12 +126,19 @@ $recent_videos = get_posts( array( 'post_type' => 'cp_video', 'posts_per_page' =
 					$thumb  = get_the_post_thumbnail_url( $vid->ID, 'medium_large' );
 					$vgames = get_the_terms( $vid->ID, 'cp_game' );
 					$views  = absint( get_post_meta( $vid->ID, '_cpwp_views', true ) );
+					$can_access = class_exists( 'CPWP_Site_Modules' ) ? CPWP_Site_Modules::can_access_video( $vid->ID ) : true;
 				?>
 				<article class="cp-twitch-video-card">
 					<a href="<?php echo esc_url( get_permalink( $vid->ID ) ); ?>" class="cp-twitch-video-thumb">
 						<?php if ( $thumb ) : ?><img src="<?php echo esc_url( $thumb ); ?>" alt=""><?php endif; ?>
 						<span class="cp-twitch-live-badge"><?php esc_html_e( 'LIVE', 'cp-theme' ); ?></span>
 						<span class="cp-twitch-viewers-badge"><?php echo number_format_i18n( $views ?: rand(100,5000) ); ?> <?php esc_html_e( 'viewers', 'cp-theme' ); ?></span>
+						<?php if ( ! $can_access ) : ?>
+							<span class="cp-card-lock-badge" style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.78); color: #fff; padding: 4px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; display: flex; align-items: center; gap: 4px; border: 1px solid rgba(255,255,255,0.15); line-height: 1; z-index: 2;">
+								<svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" style="margin-top:-1px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+								<?php esc_html_e( 'LOCKED', 'cp-theme' ); ?>
+							</span>
+						<?php endif; ?>
 					</a>
 					<div class="cp-twitch-video-info">
 						<img src="<?php echo esc_url( $avatar ); ?>" alt="" class="cp-twitch-avatar">

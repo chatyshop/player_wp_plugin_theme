@@ -1,6 +1,6 @@
 # CP WP Plugin + CP Theme
 
-**Version:** 0.9.2 · **Author:** Chaty Technologies · **License:** GPL-2.0-or-later
+**Version:** 0.25.0 · **Author:** Chaty Technologies · **License:** GPL-2.0-or-later
 
 Turn WordPress into a self-hosted video platform powered by **ChatyPlayer** — a self-hosted, feature-rich HTML5 video player.
 
@@ -235,11 +235,22 @@ cpwpplugin/
 │   │   ├── class-cpwp-storage.php         # R2 / S3 / S3-compatible signed uploads
 │   │   ├── class-cpwp-transcript.php      # Transcript full-text search
 │   │   ├── class-cpwp-users.php           # Auth system (login/register/verify/…)
-│   │   └── class-cpwp-video-archive.php   # Video grid, cards, related videos
+│   │   ├── class-cpwp-video-archive.php   # Video grid, cards, related videos
+│   │   ├── class-cpwp-channels.php        # Creator channels
+│   │   ├── class-cpwp-site-modules.php    # Site modules post types & gating
+│   │   ├── class-cpwp-security.php        # Download security
+│   │   ├── class-cpwp-moderation.php      # Moderation tools & logs
+│   │   ├── class-cpwp-page-suites.php     # Virtual page suites
+│   │   ├── class-cpwp-learning.php        # Courses & Quizzes modules
+│   │   ├── class-cpwp-streaming.php       # Streaming configuration
+│   │   ├── class-cpwp-affiliate.php       # Affiliate redirect & comparisons
+│   │   ├── class-cpwp-community.php       # Community groups & voting
+│   │   └── class-cpwp-creator-platform.php # Creator REST routes
 │   ├── admin/
 │   │   ├── class-cpwp-dashboard.php       # Admin dashboard + 7-day chart
-│   │   ├── class-cpwp-settings.php        # 8-tab settings page
-│   │   ├── class-cpwp-video-fields.php    # Video meta boxes
+│   │   ├── class-cpwp-settings.php        # Polish tabbed settings page
+│   │   ├── class-cpwp-video-fields.php    # Video meta fields
+│   │   ├── class-cpwp-bulk-videos.php     # Bulk upload manager
 │   │   ├── css/
 │   │   └── js/
 │   └── public/
@@ -261,8 +272,25 @@ cpwpplugin/
     ├── sidebar-logged-in.php
     ├── comments.php
     ├── index.php
+    ├── cpwp-unavailable.php   # Locked/gated content overlay template
+    ├── page-suite.php         # Virtual page suite router
+    ├── templates/             # Site-type template layouts
+    │   ├── affiliate/
+    │   ├── business_training/
+    │   ├── courses/
+    │   ├── creator_platform/
+    │   ├── default/
+    │   ├── gaming/
+    │   ├── membership/
+    │   ├── news/
+    │   ├── podcast/
+    │   ├── streaming/
+    │   └── video_library/
     └── assets/
-        └── watch.js
+        ├── watch.js
+        ├── upload.js
+        ├── studio.js
+        └── channel.js
 ```
 
 ---
@@ -548,6 +576,12 @@ Views · Total watch time · Average watch time per view · Completion rate %
 `storage_bucket`, `storage_region` (default `auto`), `storage_public_url`,
 `storage_access_key`, `storage_secret_key` *(never exported)*
 
+### Subscriptions & Pricing
+`enable_subscriptions`, `subscription_plugin` (`pmpro`/`woocommerce`/`memberpress`), `subscription_checkout_url`,
+`enable_pricing_page`, `pricing_free_price`, `pricing_free_features`, `pricing_free_url`, 
+`pricing_pro_price`, `pricing_pro_features`, `pricing_pro_url`,
+`pricing_premium_price`, `pricing_premium_features`, `pricing_premium_url`
+
 ### Homepage
 `home_section_order` (drag-and-drop), `home_featured_video`, `home_videos_per_section` (1–24),
 `home_show_categories`, `home_show_trending`, `home_show_latest`, `home_show_most_viewed`,
@@ -642,6 +676,14 @@ Companion theme (`cp-theme/`) designed exclusively for the plugin.
 ---
 
 ## Changelog
+
+### 0.25.0
+- Added custom virtual Pricing & Plans page (`/discover/pricing/`) with customize feature list, prices, and links in WP Settings.
+- Added subscription payment gating, visibility/role access control, and visual lock indicators to all custom post types and standard WordPress posts/pages.
+- Added footer menu registration and fallback scanners to match Privacy Policy, TOS, Contact, and Support pages.
+- Added dynamic taxonomy selection (Category, Genre, Game, Topic, Tag) on frontend uploads, dashboard editing, watch pages, and Schema.org VideoObject SEO properties.
+- Added Creator Studio Dashboard, Content Manager, Comment Moderator, and Channel Customizer templates for creator platforms, gaming, and podcast channels.
+- Added Courses site type templates: archive, front-page, sidebar, single-course, single-lesson, and single-video layouts.
 
 ### 0.9.2
 - Redesigned CP Settings as a polished 8-tab interface.
