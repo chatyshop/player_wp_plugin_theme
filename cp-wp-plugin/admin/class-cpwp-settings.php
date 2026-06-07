@@ -61,9 +61,9 @@ final class CPWP_Settings {
 			'enable_playlists' => true,
 			'enable_continue_watching' => true,
 			'enable_comment_reactions' => true,
-			'enable_monetization' => false,
-			'enable_creator_monetization' => false,
-			'enable_creator_channels' => false,
+			'enable_monetization' => true,
+			'enable_creator_monetization' => true,
+			'enable_creator_channels' => true,
 			'ad_provider' => 'custom_html',
 			'ad_publisher_id' => '',
 			'ad_home_hero' => '',
@@ -114,6 +114,14 @@ final class CPWP_Settings {
 
 	public static function register_settings() {
 		register_setting( 'cpwp_settings_group', 'cpwp_settings', array( 'sanitize_callback' => array( __CLASS__, 'sanitize' ) ) );
+		add_action( 'update_option_cpwp_settings', array( __CLASS__, 'flush_rules_on_save' ), 10, 2 );
+	}
+
+	public static function flush_rules_on_save( $old_value, $new_value ) {
+		if ( isset( $old_value['site_type'], $new_value['site_type'] ) && $old_value['site_type'] !== $new_value['site_type'] ) {
+			// Trigger a flush on the next init because post types need to be registered first
+			update_option( 'cpwp_flush_rewrite_rules', 1 );
+		}
 	}
 
 	public static function register_menu() {

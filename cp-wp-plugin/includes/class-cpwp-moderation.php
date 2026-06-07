@@ -21,7 +21,7 @@ final class CPWP_Moderation {
 	public static function report( WP_REST_Request $request ) {
 		$type = sanitize_key( $request['type'] ); $target = absint( $request['target_id'] ); $reason = sanitize_textarea_field( $request['reason'] );
 		$details = sanitize_textarea_field( $request['details'] ); $evidence = esc_url_raw( $request['evidence_url'] );
-		if ( ! in_array( $type, array( 'content', 'copyright', 'appeal' ), true ) || ! $reason ) return new WP_Error( 'invalid_report', 'Report details are required.', array( 'status' => 400 ) );
+		if ( ! in_array( $type, array( 'content', 'copyright', 'copyright_dispute', 'appeal' ), true ) || ! $reason ) return new WP_Error( 'invalid_report', 'Report details are required.', array( 'status' => 400 ) );
 		$id = wp_insert_post( array( 'post_type' => 'cpwp_case', 'post_status' => 'publish', 'post_title' => ucfirst( $type ) . ' case for #' . $target, 'post_content' => $reason, 'post_author' => get_current_user_id() ) );
 		update_post_meta( $id, '_cpwp_case_type', $type ); update_post_meta( $id, '_cpwp_target_id', $target ); update_post_meta( $id, '_cpwp_case_status', 'open' );
 		update_post_meta( $id, '_cpwp_case_details', $details ); update_post_meta( $id, '_cpwp_case_evidence', $evidence );

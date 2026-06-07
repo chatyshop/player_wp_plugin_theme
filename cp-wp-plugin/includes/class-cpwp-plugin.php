@@ -41,6 +41,12 @@ final class CPWP_Plugin {
 		add_action( 'init', array( 'CPWP_Channels', 'register_routes' ) );
 		add_action( 'init', array( 'CPWP_Page_Suites', 'register_routes' ) );
 		add_action( 'init', array( 'CPWP_Affiliate', 'register_routes' ) );
+		add_action( 'init', function() {
+			if ( get_option( 'cpwp_flush_rewrite_rules' ) ) {
+				flush_rewrite_rules();
+				delete_option( 'cpwp_flush_rewrite_rules' );
+			}
+		}, 99 );
 		add_action( 'wp_enqueue_scripts', array( 'CPWP_Assets', 'register_public_assets' ) );
 		add_action( 'admin_enqueue_scripts', array( 'CPWP_Assets', 'enqueue_admin_assets' ) );
 		add_action( 'admin_menu', array( 'CPWP_Dashboard', 'register' ) );
@@ -51,6 +57,7 @@ final class CPWP_Plugin {
 		add_action( 'admin_init', array( 'CPWP_Analytics', 'repair_legacy_data' ) );
 		add_action( 'template_redirect', array( 'CPWP_Users', 'handle_authentication' ) );
 		add_action( 'admin_init', array( 'CPWP_Users', 'block_user_admin' ) );
+		add_action( 'pre_get_posts', array( 'CPWP_Streaming', 'filter_admin_query' ) );
 		add_action( 'wp_head', array( 'CPWP_SEO', 'render_meta' ), 5 );
 		add_action( 'wp_footer', array( 'CPWP_Monetization', 'render_overlay' ) );
 		add_action( 'add_meta_boxes', array( 'CPWP_Video_Fields', 'add_meta_boxes' ) );
@@ -83,6 +90,7 @@ final class CPWP_Plugin {
 		add_action( 'rest_api_init', array( 'CPWP_Channels', 'register_rest_routes' ) );
 		add_action( 'rest_api_init', array( 'CPWP_Learning', 'register_routes' ) );
 		add_action( 'rest_api_init', array( 'CPWP_Community', 'register_routes' ) );
+		add_action( 'rest_api_init', array( 'CPWP_Creator_Platform', 'register_routes' ) );
 		add_action( 'wp_ajax_cpwp_test_storage', array( 'CPWP_Storage', 'ajax_test' ) );
 		add_action( 'wp_ajax_cpwp_presign_upload', array( 'CPWP_Storage', 'ajax_presign_upload' ) );
 		add_action( 'wp_ajax_cpwp_channel_presign_upload', array( 'CPWP_Channels', 'ajax_presign_upload' ) );
@@ -93,6 +101,7 @@ final class CPWP_Plugin {
 		add_action( 'wp_ajax_cpwp_reset_settings', array( 'CPWP_Settings', 'ajax_reset' ) );
 		add_filter( 'comments_open', array( 'CPWP_Plugin', 'comments_open' ), 10, 2 );
 		add_filter( 'preprocess_comment', array( 'CPWP_Users', 'require_login_for_comment' ) );
+		add_filter( 'pre_comment_approved', array( 'CPWP_Plugin', 'auto_approve_video_comments' ), 10, 2 );
 		add_filter( 'show_admin_bar', array( 'CPWP_Users', 'show_admin_bar' ) );
 		add_filter( 'manage_cp_video_posts_columns', array( 'CPWP_Analytics', 'add_views_column' ) );
 		add_action( 'manage_cp_video_posts_custom_column', array( 'CPWP_Analytics', 'render_views_column' ), 10, 2 );
@@ -123,6 +132,7 @@ final class CPWP_Plugin {
 		require_once CPWP_DIR . 'includes/class-cpwp-streaming.php';
 		require_once CPWP_DIR . 'includes/class-cpwp-affiliate.php';
 		require_once CPWP_DIR . 'includes/class-cpwp-community.php';
+		require_once CPWP_DIR . 'includes/class-cpwp-creator-platform.php';
 		require_once CPWP_DIR . 'admin/class-cpwp-video-fields.php';
 		require_once CPWP_DIR . 'admin/class-cpwp-dashboard.php';
 		require_once CPWP_DIR . 'admin/class-cpwp-settings.php';
@@ -131,6 +141,16 @@ final class CPWP_Plugin {
 
 	public static function comments_open( $open, $post_id ) {
 		return 'cp_video' === get_post_type( $post_id ) && ! CPWP_Settings::get( 'enable_comments' ) ? false : $open;
+	}
+
+	public static function auto_approve_video_comments( $approved, $commentdata ) {
+		$post_id = absint( $commentdata['comment_post_ID'] ?? 0 );
+		if ( 'cp_video' === get_post_type( $post_id ) ) {
+			if ( ! in_array( $approved, array( 'spam', 'trash' ), true ) && comments_open( $post_id ) ) {
+				return 1;
+			}
+		}
+		return $approved;
 	}
 
 	public static function maybe_flush_rewrites() { if ( get_option( 'cpwp_flush_rewrites' ) ) { delete_option( 'cpwp_flush_rewrites' ); flush_rewrite_rules(); } }

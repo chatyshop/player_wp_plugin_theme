@@ -25,7 +25,18 @@ final class CPWP_Site_Modules {
 		return isset( $types[ $post_type ] ) && in_array( $type, $types[ $post_type ][2], true );
 	}
 
+	public static function taxonomies() {
+		return array(
+			'cp_genre' => array( 'Genres', array( 'streaming', 'video_library', 'creator_platform', 'gaming', 'podcast' ) ),
+			'cp_game' => array( 'Games', array( 'gaming' ) ),
+			'cp_topic' => array( 'Topics', array( 'news', 'courses', 'business_training', 'podcast', 'creator_platform', 'affiliate' ) ),
+			'cp_location' => array( 'Locations', array( 'news', 'business_training', 'affiliate' ) ),
+			'cp_tag' => array( 'Video Tags', array( 'creator_platform', 'video_library', 'streaming', 'gaming', 'membership', 'affiliate' ) ),
+		);
+	}
+
 	public static function register() {
+		$site_type = CPWP_Settings::get( 'site_type' );
 		foreach ( self::types() as $type => $config ) {
 			if ( ! self::enabled( $type ) ) continue;
 			register_post_type( $type, array(
@@ -35,8 +46,9 @@ final class CPWP_Site_Modules {
 				'has_archive' => true, 'rewrite' => array( 'slug' => str_replace( 'cp_', '', $type ) ),
 			) );
 		}
-		foreach ( array( 'cp_genre' => 'Genres', 'cp_game' => 'Games', 'cp_topic' => 'Topics', 'cp_location' => 'Locations', 'cp_tag' => 'Video Tags' ) as $taxonomy => $label ) {
-			register_taxonomy( $taxonomy, array_merge( array( 'cp_video' ), array_keys( self::types() ) ), array( 'label' => __( $label, 'cp-wp-plugin' ), 'public' => true, 'show_in_rest' => true, 'hierarchical' => 'cp_tag' !== $taxonomy ) );
+		foreach ( self::taxonomies() as $taxonomy => $config ) {
+			$show = in_array( $site_type, $config[1], true );
+			register_taxonomy( $taxonomy, array_merge( array( 'cp_video' ), array_keys( self::types() ) ), array( 'label' => __( $config[0], 'cp-wp-plugin' ), 'public' => true, 'show_ui' => $show, 'show_in_menu' => $show, 'show_in_rest' => true, 'hierarchical' => 'cp_tag' !== $taxonomy ) );
 		}
 	}
 

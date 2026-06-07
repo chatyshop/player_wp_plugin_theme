@@ -210,6 +210,31 @@ document.addEventListener("click", async (event) => {
 }());
 (function () {
 	document.addEventListener('click', async function (event) {
+		var video = event.target.closest('[data-cpwp-creator-video]');
+		if (video) {
+			if (video.dataset.action === 'delete' && !window.confirm('Delete this video?')) return;
+			video.disabled = true;
+			var response = await fetch(cpwpPublic.restUrl + 'creator/video/' + video.dataset.cpwpCreatorVideo, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json', 'X-WP-Nonce': cpwpPublic.nonce}, body: JSON.stringify({action: video.dataset.action})});
+			if (response.ok) window.location.reload(); else video.disabled = false;
+			return;
+		}
+		var preferences = event.target.closest('[data-cpwp-sub-preferences]');
+		var poll = event.target.closest('[data-cpwp-poll]');
+		if (poll) {
+			poll.disabled = true;
+			var vote = await fetch(cpwpPublic.restUrl + 'community/' + poll.dataset.cpwpPoll + '/vote', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json', 'X-WP-Nonce': cpwpPublic.nonce}, body: JSON.stringify({choice: Number(poll.dataset.choice)})});
+			if (vote.ok) poll.textContent += ' ✓'; else poll.disabled = false;
+			return;
+		}
+		if (!preferences) return;
+		var notifications = window.confirm('Enable notifications for this channel?');
+		var privacy = window.confirm('Keep your subscription private?');
+		await fetch(cpwpPublic.restUrl + 'channels/' + preferences.dataset.cpwpSubPreferences + '/preferences', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json', 'X-WP-Nonce': cpwpPublic.nonce}, body: JSON.stringify({notifications: notifications, private: privacy})});
+		preferences.textContent = 'Preferences saved';
+	});
+}());
+(function () {
+	document.addEventListener('click', async function (event) {
 		var button = event.target.closest('[data-cpwp-group-membership]');
 		if (!button) return;
 		if (!window.cpwpEngagement || !cpwpEngagement.loggedIn) return window.location.href = cpwpEngagement.loginUrl;

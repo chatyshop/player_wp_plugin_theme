@@ -26,7 +26,7 @@ final class CPWP_Player_Renderer {
 			'data-mp4'            => $mp4,
 			'data-webm'           => $webm,
 			'data-ogg'            => $ogg,
-			'data-poster'         => get_the_post_thumbnail_url( $post_id, 'full' ),
+			'data-poster'         => get_post_meta( $post_id, '_cpwp_poster_url', true ) ?: get_the_post_thumbnail_url( $post_id, 'full' ),
 			'data-thumbnails'     => get_post_meta( $post_id, '_cpwp_thumbnail_sprite', true ),
 			'data-thumb-width'    => get_post_meta( $post_id, '_cpwp_thumb_width', true ),
 			'data-thumb-height'   => get_post_meta( $post_id, '_cpwp_thumb_height', true ),
@@ -53,7 +53,11 @@ final class CPWP_Player_Renderer {
 	}
 
 	public static function prepend_to_video_content( $content ) {
+		static $running = false;
+		if ( $running ) return $content;
+
 		if ( is_singular( 'cp_video' ) && in_the_loop() && is_main_query() ) {
+			$running = true;
 			$post_id    = get_the_ID();
 			$views      = absint( get_post_meta( $post_id, '_cpwp_views', true ) );
 			$categories = get_the_term_list( $post_id, 'category', '', ', ' );
@@ -75,7 +79,9 @@ final class CPWP_Player_Renderer {
 			$engagement = self::engagement_controls( $post_id );
 			$related = CPWP_Settings::get( 'show_related' ) ? CPWP_Video_Archive::related( $post_id ) : '';
 			$channel_html = $channel ? '<div class="cpwp-channel-attribution">' . ( ! empty( $channel['logo_url'] ) ? '<img src="' . esc_url( $channel['logo_url'] ) . '" alt="">' : '' ) . '<div><strong>' . esc_html( $channel['name'] ) . '</strong><span>' . esc_html( $channel['description'] ?? '' ) . '</span></div></div>' : '';
-			return '<div class="cpwp-single-video">' . CPWP_Monetization::render( 'video_above', $post_id ) . self::render( $post_id ) . CPWP_Monetization::render( 'video_below', $post_id ) . $meta . $channel_html . $engagement . $sharing . '<div class="cpwp-video-description">' . $content . CPWP_Monetization::render( 'video_description', $post_id ) . '</div>' . $transcript_html . $related . '</div>';
+			$html = '<div class="cpwp-single-video">' . CPWP_Monetization::render( 'video_above', $post_id ) . self::render( $post_id ) . CPWP_Monetization::render( 'video_below', $post_id ) . $meta . $channel_html . $engagement . $sharing . '<div class="cpwp-video-description">' . $content . CPWP_Monetization::render( 'video_description', $post_id ) . '</div>' . $transcript_html . $related . '</div>';
+			$running = false;
+			return $html;
 		}
 
 		return $content;

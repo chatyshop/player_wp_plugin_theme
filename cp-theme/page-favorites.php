@@ -12,10 +12,31 @@ get_header(); ?>
 	}
 	?>
 	<div class="cp-page-content">
-		<header class="cp-section-head">
-			<div>
+		<?php
+		$user_id = get_current_user_id();
+		$favorite_ids = is_user_logged_in() ? get_user_meta( $user_id, '_cpwp_favorites', true ) : array();
+		$count = ! empty( $favorite_ids ) && is_array( $favorite_ids ) ? count( $favorite_ids ) : 0;
+		?>
+		<header class="cp-library-hero favorites-hero">
+			<div class="cp-library-hero-icon">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+			</div>
+			<div class="cp-library-hero-content">
 				<span class="cp-kicker"><?php esc_html_e( 'Library', 'cp-theme' ); ?></span>
 				<h1 class="cp-page-title"><?php esc_html_e( 'Favorites', 'cp-theme' ); ?></h1>
+				<div class="cp-library-hero-meta">
+					<span><?php printf( esc_html( _n( '%s video', '%s videos', $count, 'cp-theme' ) ), number_format_i18n( $count ) ); ?></span>
+					<span>•</span>
+					<span><?php esc_html_e( 'Private', 'cp-theme' ); ?></span>
+				</div>
+				<?php if ( $count > 0 ) : ?>
+					<div class="cp-library-hero-actions">
+						<a href="<?php echo esc_url( get_permalink( $favorite_ids[0] ) ); ?>" class="cp-button">
+							<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+							<?php esc_html_e( 'Play All', 'cp-theme' ); ?>
+						</a>
+					</div>
+				<?php endif; ?>
 			</div>
 		</header>
 

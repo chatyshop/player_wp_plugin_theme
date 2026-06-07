@@ -89,7 +89,10 @@ final class CPWP_Users {
 			return array( __( 'Verify your email address before logging in.', 'cp-wp-plugin' ), '' );
 		}
 		delete_transient( $rate_key );
-		wp_safe_redirect( wp_validate_redirect( wp_unslash( $_POST['redirect_to'] ?? '' ), home_url( '/' ) ) );
+		$redirect_url = wp_validate_redirect( wp_unslash( $_POST['redirect_to'] ?? '' ), home_url( '/' ) );
+		if ( ! wp_redirect( $redirect_url ) ) {
+			echo '<script>window.location.replace("' . esc_url_raw( $redirect_url ) . '");</script>';
+		}
 		exit;
 	}
 
@@ -105,7 +108,10 @@ final class CPWP_Users {
 		update_user_meta( $user_id, self::VERIFIED_META, 1 );
 		wp_set_current_user( $user_id );
 		wp_set_auth_cookie( $user_id, true, is_ssl() );
-		wp_safe_redirect( home_url( '/' ) );
+		$redirect_url = home_url( '/' );
+		if ( ! wp_redirect( $redirect_url ) ) {
+			echo '<script>window.location.replace("' . esc_url_raw( $redirect_url ) . '");</script>';
+		}
 		exit;
 	}
 
@@ -133,6 +139,7 @@ final class CPWP_Users {
 	}
 
 	private static function process_profile() {
+		$creator = CPWP_Creator_Platform::process_profile(); if ( is_array( $creator ) ) return $creator;
 		$community = CPWP_Community::publish_from_request(); if ( is_array( $community ) ) return $community;
 		if ( ! empty( $_POST['cpwp_apply_creator_monetization'] ) && isset( $_POST['cpwp_creator_monetization_nonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['cpwp_creator_monetization_nonce'] ) ), 'cpwp_creator_monetization' ) ) return CPWP_Monetization::apply_creator();
 		if ( ! empty( $_POST['cpwp_save_creator_ads'] ) && isset( $_POST['cpwp_creator_ads_nonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['cpwp_creator_ads_nonce'] ) ), 'cpwp_creator_ads' ) ) return CPWP_Monetization::save_creator_ads();
@@ -227,7 +234,6 @@ final class CPWP_Users {
 		$user = wp_get_current_user();
 		?><div class="cp-shell"><section class="cp-auth-card cp-profile-card"><div class="cp-profile-head"><?php echo get_avatar( $user->ID, 80 ); ?><div><span class="cp-kicker"><?php esc_html_e( 'Your account', 'cp-wp-plugin' ); ?></span><h1><?php echo esc_html( $user->display_name ); ?></h1></div></div><?php self::notices( $error, $success ); ?>
 		<form method="post" class="cp-auth-form"><?php wp_nonce_field( 'cpwp_profile', 'cpwp_auth_nonce' ); ?><label><span><?php esc_html_e( 'Display name', 'cp-wp-plugin' ); ?></span><input name="display_name" type="text" value="<?php echo esc_attr( $user->display_name ); ?>" required></label><label><span><?php esc_html_e( 'First name', 'cp-wp-plugin' ); ?></span><input name="first_name" type="text" value="<?php echo esc_attr( $user->first_name ); ?>"></label><label><span><?php esc_html_e( 'Last name', 'cp-wp-plugin' ); ?></span><input name="last_name" type="text" value="<?php echo esc_attr( $user->last_name ); ?>"></label><label><span><?php esc_html_e( 'Email', 'cp-wp-plugin' ); ?></span><input name="user_email" type="email" value="<?php echo esc_attr( $user->user_email ); ?>" required></label><?php if ( CPWP_Settings::get( 'enable_password_confirmation' ) ) : ?><label><span><?php esc_html_e( 'Current password', 'cp-wp-plugin' ); ?></span><input name="current_password" type="password"></label><?php endif; ?><label><span><?php esc_html_e( 'New password', 'cp-wp-plugin' ); ?></span><input name="new_password" type="password" placeholder="<?php esc_attr_e( 'Leave blank to keep current password', 'cp-wp-plugin' ); ?>"></label><button class="cp-button" type="submit"><?php esc_html_e( 'Save profile', 'cp-wp-plugin' ); ?></button></form>
-		<?php CPWP_Channels::render_form(); CPWP_Channels::render_followers(); self::render_channel_video_form(); CPWP_Community::render_profile_form(); CPWP_Monetization::render_creator_form(); ?>
 		<?php if ( get_user_meta( $user->ID, '_cpwp_suspended', true ) || get_user_meta( $user->ID, '_cpwp_strikes', true ) ) : ?><p><button class="cp-button" data-cpwp-report="appeal" data-target-id="<?php echo esc_attr( $user->ID ); ?>"><?php esc_html_e( 'Submit moderation appeal', 'cp-wp-plugin' ); ?></button></p><?php endif; ?>
 		<?php if ( CPWP_Settings::get( 'enable_favorites_watch_later' ) || CPWP_Settings::get( 'enable_playlists' ) || CPWP_Settings::get( 'enable_continue_watching' ) ) : ?><section class="cpwp-library" data-cpwp-library><h2><?php esc_html_e( 'My Library', 'cp-wp-plugin' ); ?></h2><p><?php esc_html_e( 'Loading your videos...', 'cp-wp-plugin' ); ?></p></section><?php endif; ?>
 		<?php if ( CPWP_Settings::get( 'enable_email_verification' ) && get_user_meta( $user->ID, self::VERIFY_META, true ) && ! get_user_meta( $user->ID, self::VERIFIED_META, true ) ) : ?><p><a href="<?php echo esc_url( self::auth_url( 'resend-verification' ) ); ?>"><?php esc_html_e( 'Resend verification email', 'cp-wp-plugin' ); ?></a></p><?php endif; ?><?php if ( CPWP_Settings::get( 'enable_account_deletion' ) ) : ?><p><a class="cp-danger-link" href="<?php echo esc_url( self::auth_url( 'delete-account' ) ); ?>"><?php esc_html_e( 'Delete my account', 'cp-wp-plugin' ); ?></a></p><?php endif; ?></section></div><?php
@@ -251,10 +257,38 @@ final class CPWP_Users {
 		$channel = CPWP_Channels::get();
 		if ( ! $title || ! $url ) return array( __( 'Video title and uploaded video URL are required.', 'cp-wp-plugin' ), '' );
 		if ( 0 !== strpos( $url, trailingslashit( $channel['storage_public_url'] ) ) ) return array( __( 'Video URL must come from your connected channel storage bucket.', 'cp-wp-plugin' ), '' );
-		$post_id = wp_insert_post( array( 'post_type' => 'cp_video', 'post_status' => 'publish', 'post_title' => $title, 'post_content' => wp_kses_post( wp_unslash( $_POST['channel_video_description'] ?? '' ) ), 'post_author' => get_current_user_id() ), true );
+		
+		$status = sanitize_key( $_POST['post_status'] ?? 'publish' );
+		if ( ! in_array( $status, array( 'publish', 'draft' ), true ) ) $status = 'publish';
+		
+		$post_id = wp_insert_post( array(
+			'post_type' => 'cp_video',
+			'post_status' => $status,
+			'post_title' => $title,
+			'post_content' => wp_kses_post( wp_unslash( $_POST['channel_video_description'] ?? '' ) ),
+			'post_author' => get_current_user_id(),
+			'comment_status' => isset( $_POST['allow_comments'] ) && ! empty( $_POST['allow_comments'] ) ? 'open' : 'closed'
+		), true );
 		if ( is_wp_error( $post_id ) ) return array( $post_id->get_error_message(), '' );
+		
 		update_post_meta( $post_id, '_cpwp_mp4', $url );
 		update_post_meta( $post_id, '_cpwp_channel_owner', get_current_user_id() );
+		
+		if ( isset( $_POST['accent_color'] ) ) update_post_meta( $post_id, '_cpwp_accent_color', sanitize_hex_color( $_POST['accent_color'] ) );
+		if ( isset( $_POST['autoplay'] ) ) update_post_meta( $post_id, '_cpwp_autoplay', ! empty( $_POST['autoplay'] ) );
+		if ( isset( $_POST['loop'] ) ) update_post_meta( $post_id, '_cpwp_loop', ! empty( $_POST['loop'] ) );
+		if ( isset( $_POST['muted'] ) ) update_post_meta( $post_id, '_cpwp_muted', ! empty( $_POST['muted'] ) );
+		if ( isset( $_POST['preload'] ) ) update_post_meta( $post_id, '_cpwp_preload', sanitize_key( $_POST['preload'] ) );
+		if ( isset( $_POST['poster_url'] ) ) update_post_meta( $post_id, '_cpwp_poster_url', esc_url_raw( $_POST['poster_url'] ) );
+		if ( isset( $_POST['chapters'] ) ) {
+			$chapters = json_decode( wp_unslash( $_POST['chapters'] ), true );
+			update_post_meta( $post_id, '_cpwp_chapters', is_array( $chapters ) ? $chapters : array() );
+		}
+		if ( isset( $_POST['subtitles'] ) ) {
+			$subtitles = json_decode( wp_unslash( $_POST['subtitles'] ), true );
+			update_post_meta( $post_id, '_cpwp_subtitles', is_array( $subtitles ) ? $subtitles : array() );
+		}
+		
 		return array( '', __( 'Your channel video has been published.', 'cp-wp-plugin' ) );
 	}
 
@@ -280,13 +314,15 @@ final class CPWP_Users {
 		$log = get_option( CPWP_Moderation::LOG, array() );
 		foreach ( $users as $user ) { $activity = count( array_filter( $log, function ( $item ) use ( $user ) { return absint( $item['user'] ?? 0 ) === $user->ID || absint( $item['target'] ?? 0 ) === $user->ID; } ) );
 			echo '<tr><td><strong>' . esc_html( $user->display_name ) . '</strong><br>' . esc_html( $user->user_email ) . '</td><td>' . esc_html( implode( ', ', $user->roles ) ) . '</td><td>' . ( get_user_meta( $user->ID, self::VERIFIED_META, true ) ? 'Yes' : 'No' ) . '</td><td>' . ( get_user_meta( $user->ID, '_cpwp_suspended', true ) ? 'Suspended' : 'Active' ) . '</td><td>' . esc_html( absint( get_user_meta( $user->ID, '_cpwp_strikes', true ) ) ) . '</td><td>' . esc_html( $activity ) . ' events</td><td><form method="post">'; wp_nonce_field( 'cpwp_manage_user' );
-			echo '<input type="hidden" name="cpwp_user_id" value="' . esc_attr( $user->ID ) . '"><select name="cpwp_user_action"><option value="verify">Verify</option><option value="unverify">Unverify</option><option value="suspend">Suspend</option><option value="activate">Activate</option><option value="clear_strikes">Clear strikes</option><option value="delete">Delete</option></select> <button class="button">Apply</button></form></td></tr>'; }
+			echo '<input type="hidden" name="cpwp_user_id" value="' . esc_attr( $user->ID ) . '"><select name="cpwp_user_action"><optgroup label="Account"><option value="verify">Verify email</option><option value="unverify">Unverify email</option></optgroup><optgroup label="Channel Verification"><option value="verify_channel">Approve channel</option><option value="reject_channel">Reject channel</option></optgroup><optgroup label="Moderation"><option value="suspend">Suspend user</option><option value="activate">Activate user</option><option value="clear_strikes">Clear strikes</option></optgroup><optgroup label="Danger Zone"><option value="delete">Delete user</option></optgroup></select> <button class="button">Apply</button></form></td></tr>'; }
 		echo '</tbody></table></div>';
 	}
 
 	private static function manage_user() {
 		$id = absint( $_POST['cpwp_user_id'] ); $action = sanitize_key( wp_unslash( $_POST['cpwp_user_action'] ) ); if ( ! $id || $id === get_current_user_id() ) return;
 		if ( 'verify' === $action ) update_user_meta( $id, self::VERIFIED_META, 1 );
+		elseif ( 'verify_channel' === $action ) update_user_meta( $id, CPWP_Creator_Platform::VERIFY_STATUS, 'approved' );
+		elseif ( 'reject_channel' === $action ) update_user_meta( $id, CPWP_Creator_Platform::VERIFY_STATUS, 'rejected' );
 		elseif ( 'unverify' === $action ) delete_user_meta( $id, self::VERIFIED_META );
 		elseif ( 'suspend' === $action ) update_user_meta( $id, '_cpwp_suspended', 1 );
 		elseif ( 'activate' === $action ) delete_user_meta( $id, '_cpwp_suspended' );

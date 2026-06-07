@@ -7,7 +7,18 @@ final class CPWP_Streaming {
 	const SERIES = '_cpwp_series_id';
 
 	public static function register_menu() {
-		if ( 'streaming' === CPWP_Settings::get( 'site_type' ) ) add_submenu_page( 'edit.php?post_type=cp_video', __( 'Season Management', 'cp-wp-plugin' ), __( 'Seasons', 'cp-wp-plugin' ), 'edit_others_posts', 'cpwp-seasons', array( __CLASS__, 'render_admin' ) );
+		if ( 'streaming' === CPWP_Settings::get( 'site_type' ) ) {
+			add_submenu_page( 'edit.php?post_type=cp_video', __( 'Movies', 'cp-wp-plugin' ), __( 'Movies', 'cp-wp-plugin' ), 'edit_posts', 'edit.php?post_type=cp_video&cpwp_type=movie' );
+			add_submenu_page( 'edit.php?post_type=cp_video', __( 'TV Episodes', 'cp-wp-plugin' ), __( 'TV Episodes', 'cp-wp-plugin' ), 'edit_posts', 'edit.php?post_type=cp_video&cpwp_type=episode' );
+			add_submenu_page( 'edit.php?post_type=cp_video', __( 'Season Management', 'cp-wp-plugin' ), __( 'Seasons', 'cp-wp-plugin' ), 'edit_others_posts', 'cpwp-seasons', array( __CLASS__, 'render_admin' ), 16 );
+		}
+	}
+
+	public static function filter_admin_query( $query ) {
+		if ( is_admin() && $query->is_main_query() && 'cp_video' === $query->get( 'post_type' ) && isset( $_GET['cpwp_type'] ) ) {
+			$type = sanitize_key( wp_unslash( $_GET['cpwp_type'] ) );
+			$query->set( 'meta_query', array( array( 'key' => self::TYPE, 'value' => $type ) ) );
+		}
 	}
 
 	public static function render_fields( $post ) {
@@ -43,7 +54,7 @@ final class CPWP_Streaming {
 
 	public static function render_admin() {
 		$series_id = absint( $_GET['series_id'] ?? 0 );
-		echo '<div class="wrap"><h1>Season Management</h1><form method="get"><input type="hidden" name="post_type" value="cp_video"><input type="hidden" name="page" value="cpwp-seasons"><select name="series_id"><option value="0">Select a TV series</option>';
+		echo '<div class="wrap"><h1>Season Management</h1><form action="edit.php" method="get"><input type="hidden" name="post_type" value="cp_video"><input type="hidden" name="page" value="cpwp-seasons"><select name="series_id"><option value="0">Select a TV series</option>';
 		foreach ( get_posts( array( 'post_type' => 'cp_series', 'posts_per_page' => -1, 'orderby' => 'title', 'order' => 'ASC' ) ) as $series ) printf( '<option value="%d" %s>%s</option>', $series->ID, selected( $series_id, $series->ID, false ), esc_html( get_the_title( $series ) ) );
 		echo '</select> <button class="button">View seasons</button></form>';
 		if ( $series_id ) {

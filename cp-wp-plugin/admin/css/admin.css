@@ -35,12 +35,17 @@
 .cpwp-tab-panel.is-active { display:block; }
 .cpwp-settings-save { position:sticky; z-index:5; bottom:0; margin-top:20px; padding:10px 18px; border:1px solid #c3c4c7; background:rgba(240,240,241,.96); }
 .cpwp-settings-save p { margin:0; }
-.cpwp-settings-section { margin-top: 22px; padding: 22px; border: 1px solid #dcdcde; border-radius: 10px; background: #fff; }
-.cpwp-settings-section h2 { margin-top: 0; }
-.cpwp-settings-section label { display: grid; grid-template-columns: 220px 1fr; gap: 16px; align-items: center; margin: 14px 0; }
-.cpwp-settings-section input[type=text],.cpwp-settings-section select { width: 100%; max-width: 520px; }
-.cpwp-settings-section input[type=password] { width: 100%; max-width: 520px; }
-.cpwp-settings-section textarea { width: 100%; max-width: 520px; }
+.cpwp-settings-section { margin-top: 22px; padding: 28px; border: 1px solid #dcdcde; border-radius: 12px; background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.02); }
+.cpwp-settings-section h2 { margin-top: 0; padding-bottom: 12px; border-bottom: 1px solid #f0f0f1; margin-bottom: 24px; }
+.cpwp-settings-section label { display: grid; grid-template-columns: 240px 1fr; gap: 16px; align-items: center; margin: 18px 0; }
+.cpwp-settings-section input[type=text],
+.cpwp-settings-section input[type=password],
+.cpwp-settings-section select,
+.cpwp-settings-section textarea { width: 100%; max-width: 520px; padding: 8px 12px; border: 1px solid #8c8f94; border-radius: 6px; box-shadow: none; transition: border-color 0.2s, box-shadow 0.2s; }
+.cpwp-settings-section input[type=text]:focus,
+.cpwp-settings-section input[type=password]:focus,
+.cpwp-settings-section select:focus,
+.cpwp-settings-section textarea:focus { border-color: #2271b1; box-shadow: 0 0 0 1px #2271b1; outline: none; }
 .cpwp-settings-section select[multiple] { min-height: 150px; }
 .cpwp-storage-success { color: #008a20; font-weight: 600; }
 .cpwp-storage-error { color: #b32d2e; font-weight: 600; }

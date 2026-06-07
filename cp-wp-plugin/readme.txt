@@ -3,7 +3,7 @@ Contributors: chatyshop
 Tags: video, player, self-hosted, chatyplayer
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 0.24.0
+Stable tag: 0.25.0
 License: GPLv2 or later
 
 Turn WordPress into a self-hosted video platform powered by ChatyPlayer.
@@ -22,6 +22,9 @@ chapters, thumbnail preview sprites, automatic single-video rendering, and the
 4. Add at least one video source and publish the video.
 
 == Changelog ==
+
+= 0.25.0 =
+* Added creator channel customization and discovery, creator analytics, richer community posts, claim disputes, verification requests, frontend video management, and subscriber preferences.
 
 = 0.24.0 =
 * Added group membership, group-restricted community posts, frontend community publishing, and group moderation.

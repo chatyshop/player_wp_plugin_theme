@@ -43,6 +43,15 @@ function cp_theme_cp_setting( $key, $fallback = '' ) {
 	return $options[ $key ] ?? $fallback;
 }
 
+function cp_theme_body_class( $classes ) {
+	$site_type = cp_theme_cp_setting( 'site_type' );
+	if ( $site_type ) {
+		$classes[] = 'cp-site-type-' . sanitize_html_class( $site_type );
+	}
+	return $classes;
+}
+add_filter( 'body_class', 'cp_theme_body_class' );
+
 function cp_theme_video_card( $post_id ) {
 	if ( 'cp_video' !== get_post_type( $post_id ) ) {
 		?>
@@ -160,7 +169,13 @@ function cp_theme_people_and_items( $title, $items ) { if ( ! $items ) return; e
 function cp_theme_preset_home_sections() {
 	if ( ! class_exists( 'CPWP_Site_Modules' ) ) return; $type = cp_theme_cp_setting( 'site_type', 'creator_platform' );
 	if ( 'creator_platform' === $type ) { echo '<section class="cp-section"><div class="cp-section-head"><h2>Creator channels</h2></div><div class="cp-channel-grid">'; foreach ( CPWP_Site_Modules::channels() as $item ) echo '<a href="' . esc_url( CPWP_Channels::public_url( $item['channel'] ) ) . '"><img src="' . esc_url( $item['channel']['logo_url'] ?? get_avatar_url( $item['user']->ID ) ) . '" alt=""><h3>' . esc_html( $item['channel']['name'] ) . '</h3><p>' . esc_html( $item['channel']['description'] ) . '</p></a>'; echo '</div></section>'; }
-	foreach ( array( 'streaming' => array( 'cp_series', 'Featured series' ), 'courses' => array( 'cp_course', 'Courses' ), 'podcast' => array( 'cp_series', 'Podcast shows' ), 'news' => array( 'cp_news', 'Breaking and latest news' ), 'affiliate' => array( 'cp_product', 'Featured products' ), 'gaming' => array( 'cp_event', 'Tournaments and events' ), 'business_training' => array( 'cp_course', 'Assigned training' ) ) as $preset => $config ) if ( $type === $preset ) cp_theme_content_section( $config[1], $config[0] );
+	if ( 'streaming' === $type && class_exists( 'CPWP_Page_Suites' ) ) {
+		cp_theme_content_section( 'Featured series', 'cp_series' );
+		cp_theme_video_section( 'Trending Movies', array( 'meta_query' => array( array( 'key' => '_cpwp_streaming_type', 'value' => 'movie' ) ), 'meta_key' => '_cpwp_views', 'orderby' => 'meta_value_num' ), CPWP_Page_Suites::url( 'movies' ) );
+		cp_theme_video_section( 'Latest TV Episodes', array( 'meta_query' => array( array( 'key' => '_cpwp_streaming_type', 'value' => 'episode' ) ) ), CPWP_Page_Suites::url( 'tv-shows' ) );
+	} else {
+		foreach ( array( 'streaming' => array( 'cp_series', 'Featured series' ), 'courses' => array( 'cp_course', 'Courses' ), 'podcast' => array( 'cp_series', 'Podcast shows' ), 'news' => array( 'cp_news', 'Breaking and latest news' ), 'affiliate' => array( 'cp_product', 'Featured products' ), 'gaming' => array( 'cp_event', 'Tournaments and events' ), 'business_training' => array( 'cp_course', 'Assigned training' ) ) as $preset => $config ) if ( $type === $preset ) cp_theme_content_section( $config[1], $config[0] );
+	}
 	if ( 'business_training' === $type && is_user_logged_in() ) cp_theme_training_dashboard();
 }
 

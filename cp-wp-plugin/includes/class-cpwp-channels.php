@@ -45,7 +45,7 @@ final class CPWP_Channels {
 	public static function render_followers() {
 		$channel = self::get(); if ( ! $channel ) return; $followers = self::followers();
 		echo '<section class="cpwp-channel-panel"><h2>' . esc_html__( 'Channel Followers', 'cp-wp-plugin' ) . '</h2><p>' . esc_html( sprintf( _n( '%d subscriber', '%d subscribers', count( $followers ), 'cp-wp-plugin' ), count( $followers ) ) ) . '</p>';
-		if ( $followers ) { echo '<div class="cpwp-follower-list">'; foreach ( $followers as $id ) { $user = get_userdata( $id ); if ( $user ) echo '<div>' . get_avatar( $id, 36 ) . '<span>' . esc_html( $user->display_name ) . '</span></div>'; } echo '</div>'; } else echo '<p>' . esc_html__( 'Your channel has no followers yet.', 'cp-wp-plugin' ) . '</p>';
+		if ( $followers ) { echo '<div class="cpwp-follower-list">'; foreach ( $followers as $id ) { $prefs = (array) get_user_meta( $id, CPWP_Creator_Platform::SUB_PREFS, true ); if ( ! empty( $prefs[ get_current_user_id() ]['private'] ) ) continue; $user = get_userdata( $id ); if ( $user ) echo '<div>' . get_avatar( $id, 36 ) . '<span>' . esc_html( $user->display_name ) . '</span></div>'; } echo '</div>'; } else echo '<p>' . esc_html__( 'Your channel has no followers yet.', 'cp-wp-plugin' ) . '</p>';
 		echo '</section>';
 	}
 
@@ -76,6 +76,11 @@ final class CPWP_Channels {
 			'slug' => sanitize_title( wp_unslash( $_POST['channel_name'] ?? '' ) ),
 			'description' => sanitize_textarea_field( wp_unslash( $_POST['channel_description'] ?? '' ) ),
 			'logo_url' => esc_url_raw( wp_unslash( $_POST['channel_logo_url'] ?? '' ) ),
+			'banner_url' => esc_url_raw( wp_unslash( $_POST['channel_banner_url'] ?? '' ) ),
+			'accent_color' => sanitize_hex_color( wp_unslash( $_POST['channel_accent_color'] ?? '' ) ) ?: '#6d5dfc',
+			'featured_video' => absint( $_POST['channel_featured_video'] ?? 0 ),
+			'sections' => sanitize_text_field( wp_unslash( $_POST['channel_sections'] ?? 'featured,latest,community' ) ),
+			'category' => sanitize_text_field( wp_unslash( $_POST['channel_category'] ?? '' ) ),
 			'storage_endpoint' => esc_url_raw( wp_unslash( $_POST['channel_storage_endpoint'] ?? '' ) ),
 			'storage_bucket' => sanitize_text_field( wp_unslash( $_POST['channel_storage_bucket'] ?? '' ) ),
 			'storage_region' => sanitize_text_field( wp_unslash( $_POST['channel_storage_region'] ?? 'auto' ) ),
@@ -107,6 +112,11 @@ final class CPWP_Channels {
 		<label><span><?php esc_html_e( 'Channel name', 'cp-wp-plugin' ); ?></span><input name="channel_name" type="text" value="<?php echo esc_attr( $channel['name'] ?? '' ); ?>" required></label>
 		<label><span><?php esc_html_e( 'Description', 'cp-wp-plugin' ); ?></span><textarea name="channel_description" rows="4"><?php echo esc_textarea( $channel['description'] ?? '' ); ?></textarea></label>
 		<label><span><?php esc_html_e( 'Logo URL', 'cp-wp-plugin' ); ?></span><input name="channel_logo_url" type="url" value="<?php echo esc_attr( $channel['logo_url'] ?? '' ); ?>"></label>
+		<label><span><?php esc_html_e( 'Banner URL', 'cp-wp-plugin' ); ?></span><input name="channel_banner_url" type="url" value="<?php echo esc_attr( $channel['banner_url'] ?? '' ); ?>"></label>
+		<label><span><?php esc_html_e( 'Channel color', 'cp-wp-plugin' ); ?></span><input name="channel_accent_color" type="color" value="<?php echo esc_attr( $channel['accent_color'] ?? '#6d5dfc' ); ?>"></label>
+		<label><span><?php esc_html_e( 'Category', 'cp-wp-plugin' ); ?></span><input name="channel_category" value="<?php echo esc_attr( $channel['category'] ?? '' ); ?>"></label>
+		<label><span><?php esc_html_e( 'Featured video ID', 'cp-wp-plugin' ); ?></span><input name="channel_featured_video" type="number" value="<?php echo esc_attr( $channel['featured_video'] ?? '' ); ?>"></label>
+		<label><span><?php esc_html_e( 'Sections (featured,latest,community)', 'cp-wp-plugin' ); ?></span><input name="channel_sections" value="<?php echo esc_attr( $channel['sections'] ?? 'featured,latest,community' ); ?>"></label>
 		<label><span><?php esc_html_e( 'Storage endpoint', 'cp-wp-plugin' ); ?></span><input name="channel_storage_endpoint" type="url" value="<?php echo esc_attr( $channel['storage_endpoint'] ?? '' ); ?>" required></label>
 		<label><span><?php esc_html_e( 'Bucket', 'cp-wp-plugin' ); ?></span><input name="channel_storage_bucket" type="text" value="<?php echo esc_attr( $channel['storage_bucket'] ?? '' ); ?>" required></label>
 		<label><span><?php esc_html_e( 'Region', 'cp-wp-plugin' ); ?></span><input name="channel_storage_region" type="text" value="<?php echo esc_attr( $channel['storage_region'] ?? 'auto' ); ?>" required></label>
@@ -123,7 +133,16 @@ final class CPWP_Channels {
 		$channel = self::get();
 		$name = sanitize_file_name( wp_unslash( $_POST['filename'] ?? '' ) );
 		$type = sanitize_mime_type( wp_unslash( $_POST['content_type'] ?? 'application/octet-stream' ) );
-		if ( ! $channel || ! $name || 0 !== strpos( $type, 'video/' ) ) wp_send_json_error( array( 'message' => __( 'Create a channel first and upload a supported video file.', 'cp-wp-plugin' ) ) );
+		$allowed = false;
+		if ( 0 === strpos( $type, 'video/' ) || 0 === strpos( $type, 'image/' ) ) {
+			$allowed = true;
+		} else {
+			$ext = strtolower( pathinfo( $name, PATHINFO_EXTENSION ) );
+			if ( in_array( $ext, array( 'vtt', 'srt' ), true ) ) {
+				$allowed = true;
+			}
+		}
+		if ( ! $channel || ! $name || ! $allowed ) wp_send_json_error( array( 'message' => __( 'Create a channel first and upload a supported video, image, or subtitle file.', 'cp-wp-plugin' ) ) );
 		$key = 'channels/' . get_current_user_id() . '/' . wp_date( 'Y/m' ) . '/' . wp_generate_uuid4() . '-' . $name;
 		$url = self::presigned_put_url( $channel, $key, $type );
 		if ( is_wp_error( $url ) ) wp_send_json_error( array( 'message' => $url->get_error_message() ) );

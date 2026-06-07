@@ -11,7 +11,7 @@ final class CPWP_Page_Suites {
 			'news' => array( 'breaking-news' => 'Breaking News', 'topics' => 'Topics', 'locations' => 'Locations', 'corrections' => 'Corrections' ),
 			'affiliate' => array( 'comparisons' => 'Comparisons', 'coupons' => 'Coupons', 'product-categories' => 'Product Categories' ),
 			'gaming' => array( 'games' => 'Games Directory', 'tournaments' => 'Tournament Brackets' ),
-			'creator_platform' => array( 'channels' => 'Channels Directory', 'following' => 'Following', 'community' => 'Community Posts' ),
+			'creator_platform' => array( 'channels' => 'Channels Directory', 'following' => 'Following', 'community' => 'Community Posts', 'studio' => 'Creator Studio', 'upload' => 'Upload Video' ),
 			'business_training' => array( 'assignments' => 'My Assignments', 'deadlines' => 'Deadlines', 'certificates' => 'Certificates', 'manager-reports' => 'Manager Reports' ),
 			'video_library' => array( 'folders' => 'Folders', 'collections' => 'Collections Browser', 'download-history' => 'Download History' ),
 			'membership' => array( 'groups' => 'Groups Directory', 'community-feed' => 'Community Feed' ),
@@ -35,7 +35,7 @@ final class CPWP_Page_Suites {
 		$template = locate_template( 'page-suite.php' ); if ( $template ) { include $template; exit; }
 	}
 
-	private static function requires_login( $slug ) { return in_array( $slug, array( 'watch-history', 'my-courses', 'student-progress', 'quiz-results', 'certificates', 'following', 'assignments', 'deadlines', 'manager-reports', 'download-history' ), true ); }
+	private static function requires_login( $slug ) { return in_array( $slug, array( 'watch-history', 'my-courses', 'student-progress', 'quiz-results', 'certificates', 'following', 'assignments', 'deadlines', 'manager-reports', 'download-history', 'studio', 'upload' ), true ); }
 
 	public static function data( $slug ) {
 		switch ( $slug ) {
@@ -58,7 +58,7 @@ final class CPWP_Page_Suites {
 			case 'coupons': return get_posts( array( 'post_type' => 'cp_product', 'posts_per_page' => 100, 'meta_key' => CPWP_Affiliate::COUPON, 'meta_compare' => 'EXISTS' ) );
 			case 'games': return get_terms( array( 'taxonomy' => 'cp_game', 'hide_empty' => false ) );
 			case 'tournaments': return get_posts( array( 'post_type' => 'cp_event', 'posts_per_page' => 100 ) );
-			case 'channels': return CPWP_Site_Modules::channels();
+			case 'channels': return CPWP_Creator_Platform::channels( sanitize_text_field( wp_unslash( $_GET['channel_search'] ?? '' ) ), sanitize_text_field( wp_unslash( $_GET['channel_category'] ?? '' ) ) );
 			case 'following': return CPWP_Channels::followed_channels();
 			case 'community': case 'community-feed': return CPWP_Community::visible_posts();
 			case 'assignments': case 'deadlines': return get_posts( array( 'post_type' => 'cp_course', 'posts_per_page' => 100, 'post__in' => CPWP_Learning::assigned_courses() ?: array( 0 ), 'meta_key' => '_cpwp_deadline', 'orderby' => 'meta_value', 'order' => 'ASC' ) );
