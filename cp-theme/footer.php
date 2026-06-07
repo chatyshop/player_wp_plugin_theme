@@ -1,5 +1,32 @@
 </main>
-<footer class="cp-site-footer"><div class="cp-shell cp-footer-inner"><strong><?php echo esc_html( cp_theme_cp_setting( 'platform_name', get_bloginfo( 'name' ) ) ); ?></strong><span><?php echo esc_html( cp_theme_cp_setting( 'tagline', get_bloginfo( 'description' ) ) ); ?></span><span><?php echo esc_html( cp_theme_cp_setting( 'footer_text', '© ' . gmdate( 'Y' ) ) ); ?><?php if ( cp_theme_cp_setting( 'facebook_url' ) ) : ?> · <a href="<?php echo esc_url( cp_theme_cp_setting( 'facebook_url' ) ); ?>">Facebook</a><?php endif; ?><?php if ( cp_theme_cp_setting( 'x_url' ) ) : ?> · <a href="<?php echo esc_url( cp_theme_cp_setting( 'x_url' ) ); ?>">X</a><?php endif; ?></span></div></footer>
+<footer class="cp-site-footer">
+	<div class="cp-shell cp-footer-inner">
+		<strong><?php echo esc_html( cp_theme_cp_setting( 'platform_name', get_bloginfo( 'name' ) ) ); ?></strong>
+		<span><?php echo esc_html( cp_theme_cp_setting( 'tagline', get_bloginfo( 'description' ) ) ); ?></span>
+		
+		<?php if ( has_nav_menu( 'footer' ) ) : ?>
+			<div class="cp-footer-menu-container">
+				<?php 
+				wp_nav_menu( array(
+					'theme_location' => 'footer',
+					'container'      => 'nav',
+					'container_class'=> 'cp-footer-nav',
+					'depth'          => 1,
+					'fallback_cb'    => false,
+				) );
+				?>
+			</div>
+		<?php else : ?>
+			<?php cp_theme_footer_menu_fallback(); ?>
+		<?php endif; ?>
+
+		<span>
+			<?php echo esc_html( cp_theme_cp_setting( 'footer_text', '© ' . gmdate( 'Y' ) ) ); ?>
+			<?php if ( cp_theme_cp_setting( 'facebook_url' ) ) : ?> · <a href="<?php echo esc_url( cp_theme_cp_setting( 'facebook_url' ) ); ?>">Facebook</a><?php endif; ?>
+			<?php if ( cp_theme_cp_setting( 'x_url' ) ) : ?> · <a href="<?php echo esc_url( cp_theme_cp_setting( 'x_url' ) ); ?>">X</a><?php endif; ?>
+		</span>
+	</div>
+</footer>
 <?php if ( is_user_logged_in() ) : ?>
 <script>
 (function() {

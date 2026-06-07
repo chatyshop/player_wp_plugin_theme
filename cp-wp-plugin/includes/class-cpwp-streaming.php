@@ -15,6 +15,7 @@ final class CPWP_Streaming {
 	}
 
 	public static function filter_admin_query( $query ) {
+		if ( 'streaming' !== CPWP_Settings::get( 'site_type' ) ) return;
 		if ( is_admin() && $query->is_main_query() && 'cp_video' === $query->get( 'post_type' ) && isset( $_GET['cpwp_type'] ) ) {
 			$type = sanitize_key( wp_unslash( $_GET['cpwp_type'] ) );
 			$query->set( 'meta_query', array( array( 'key' => self::TYPE, 'value' => $type ) ) );
@@ -32,6 +33,7 @@ final class CPWP_Streaming {
 	}
 
 	public static function save( $post_id ) {
+		if ( 'streaming' !== CPWP_Settings::get( 'site_type' ) ) return;
 		if ( 'cp_video' !== get_post_type( $post_id ) || ! isset( $_POST['cpwp_module_nonce'] ) ) return;
 		$type = sanitize_key( wp_unslash( $_POST[ self::TYPE ] ?? 'standalone' ) );
 		$type = in_array( $type, array( 'standalone', 'movie', 'episode' ), true ) ? $type : 'standalone';

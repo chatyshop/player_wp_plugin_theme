@@ -45,10 +45,20 @@ get_header();
 								<a href="<?php echo esc_url( get_term_link( $games[0] ) ); ?>" class="cp-twitch-game-link"><?php echo esc_html( $games[0]->name ); ?></a>
 								<?php endif; ?>
 							</div>
-							<div class="cp-twitch-tags">
-								<span class="cp-twitch-tag">English</span>
-								<span class="cp-twitch-tag">Competitive</span>
+							<?php 
+							$genres = get_the_terms( $post_id, 'cp_genre' ) ?: array();
+							$tags   = get_the_terms( $post_id, 'cp_tag' ) ?: array();
+							if ( ! empty( $genres ) && ! is_wp_error( $genres ) || ! empty( $tags ) && ! is_wp_error( $tags ) ) :
+							?>
+							<div class="cp-twitch-tags" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">
+								<?php if ( ! empty( $genres ) && ! is_wp_error( $genres ) ) : foreach ( $genres as $genre ) : ?>
+									<a href="<?php echo esc_url( get_term_link( $genre ) ); ?>" class="cp-twitch-tag" style="background:var(--cp-soft); color:var(--cp-accent); text-decoration:none;"><?php echo esc_html( $genre->name ); ?></a>
+								<?php endforeach; endif; ?>
+								<?php if ( ! empty( $tags ) && ! is_wp_error( $tags ) ) : foreach ( $tags as $tag ) : ?>
+									<a href="<?php echo esc_url( get_term_link( $tag ) ); ?>" class="cp-twitch-tag" style="background:var(--cp-soft); color:var(--cp-accent); text-decoration:none;">#<?php echo esc_html( $tag->name ); ?></a>
+								<?php endforeach; endif; ?>
 							</div>
+							<?php endif; ?>
 						</div>
 					</div>
 

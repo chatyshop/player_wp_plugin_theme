@@ -18,7 +18,17 @@ final class CPWP_Page_Suites {
 		);
 	}
 
-	public static function current_pages() { return self::pages()[ CPWP_Settings::get( 'site_type' ) ] ?? array(); }
+	public static function current_pages() {
+		$pages = self::pages()[ CPWP_Settings::get( 'site_type' ) ] ?? array();
+		if ( CPWP_Settings::get( 'enable_creator_channels' ) ) {
+			$pages['studio'] = 'Creator Studio';
+			$pages['upload'] = 'Upload Video';
+		}
+		if ( CPWP_Settings::get( 'enable_pricing_page' ) ) {
+			$pages['pricing'] = 'Pricing & Plans';
+		}
+		return $pages;
+	}
 	public static function url( $slug ) { return home_url( '/discover/' . sanitize_title( $slug ) . '/' ); }
 
 	public static function register_routes() {

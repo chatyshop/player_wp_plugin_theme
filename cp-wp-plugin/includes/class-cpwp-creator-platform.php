@@ -7,6 +7,7 @@ final class CPWP_Creator_Platform {
 	const SUB_PREFS = '_cpwp_channel_subscription_preferences';
 
 	public static function register_routes() {
+		if ( ! CPWP_Settings::get( 'enable_creator_channels' ) ) return;
 		register_rest_route( 'cpwp/v1', '/creator/video/(?P<video_id>\d+)', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'manage_video' ), 'permission_callback' => 'is_user_logged_in' ) );
 		register_rest_route( 'cpwp/v1', '/creator/comments/(?P<comment_id>\d+)', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'manage_comment' ), 'permission_callback' => 'is_user_logged_in' ) );
 		register_rest_route( 'cpwp/v1', '/channels/(?P<owner_id>\d+)/preferences', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'preferences' ), 'permission_callback' => 'is_user_logged_in' ) );
@@ -18,7 +19,7 @@ final class CPWP_Creator_Platform {
 	}
 
 	public static function render_profile() {
-		if ( 'creator_platform' !== CPWP_Settings::get( 'site_type' ) || ! CPWP_Channels::get() ) return;
+		if ( ! CPWP_Settings::get( 'enable_creator_channels' ) || ! CPWP_Channels::get() ) return;
 		$user_id = get_current_user_id(); $videos = self::videos( $user_id ); $views = $watch = $completions = 0;
 		foreach ( $videos as $video ) { $views += absint( get_post_meta( $video->ID, '_cpwp_views', true ) ); $watch += absint( get_post_meta( $video->ID, '_cpwp_watch_time', true ) ); $completions += absint( get_post_meta( $video->ID, '_cpwp_completions', true ) ); }
 		echo '<section class="cpwp-channel-panel"><h2>Creator analytics</h2><div class="cp-training-dashboard"><div><strong>' . esc_html( count( $videos ) ) . '</strong><span>Videos</span></div><div><strong>' . esc_html( $views ) . '</strong><span>Views</span></div><div><strong>' . esc_html( round( $watch / 3600, 1 ) ) . '</strong><span>Watch hours</span></div><div><strong>' . esc_html( $completions ) . '</strong><span>Completions</span></div><div><strong>' . esc_html( count( CPWP_Channels::followers() ) ) . '</strong><span>Subscribers</span></div></div></section>';
@@ -56,6 +57,37 @@ final class CPWP_Creator_Platform {
 			if ( isset( $request['subtitles'] ) ) {
 				$subtitles = json_decode( $request['subtitles'], true );
 				update_post_meta( $id, '_cpwp_subtitles', is_array( $subtitles ) ? $subtitles : array() );
+			}
+
+			// Save taxonomies based on site type
+			$site_type = CPWP_Settings::get( 'site_type' );
+			if ( 'creator_platform' === $site_type ) {
+				if ( isset( $request['video_genre'] ) ) {
+					wp_set_post_terms( $id, array( absint( $request['video_genre'] ) ), 'cp_genre' );
+				}
+				if ( isset( $request['video_topic'] ) ) {
+					wp_set_post_terms( $id, array( absint( $request['video_topic'] ) ), 'cp_topic' );
+				}
+				if ( isset( $request['video_tags'] ) ) {
+					wp_set_post_terms( $id, sanitize_text_field( $request['video_tags'] ), 'cp_tag' );
+				}
+			} elseif ( 'gaming' === $site_type ) {
+				if ( isset( $request['video_genre'] ) ) {
+					wp_set_post_terms( $id, array( absint( $request['video_genre'] ) ), 'cp_genre' );
+				}
+				if ( isset( $request['video_game'] ) ) {
+					wp_set_post_terms( $id, array( absint( $request['video_game'] ) ), 'cp_game' );
+				}
+				if ( isset( $request['video_tags'] ) ) {
+					wp_set_post_terms( $id, sanitize_text_field( $request['video_tags'] ), 'cp_tag' );
+				}
+			} elseif ( 'podcast' === $site_type ) {
+				if ( isset( $request['video_genre'] ) ) {
+					wp_set_post_terms( $id, array( absint( $request['video_genre'] ) ), 'cp_genre' );
+				}
+				if ( isset( $request['video_topic'] ) ) {
+					wp_set_post_terms( $id, array( absint( $request['video_topic'] ) ), 'cp_topic' );
+				}
 			}
 		} else {
 			return new WP_Error( 'invalid_action', 'Invalid action.', array( 'status' => 400 ) );

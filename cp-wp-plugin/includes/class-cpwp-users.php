@@ -250,7 +250,7 @@ final class CPWP_Users {
 
 	private static function client_ip() { return sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ?? 'unknown' ) ); }
 
-	private static function publish_channel_video() {
+	public static function publish_channel_video() {
 		if ( ! CPWP_Settings::get( 'enable_creator_channels' ) || ! CPWP_Channels::get() ) return array( __( 'Create your channel before publishing videos.', 'cp-wp-plugin' ), '' );
 		$title = sanitize_text_field( wp_unslash( $_POST['channel_video_title'] ?? '' ) );
 		$url = esc_url_raw( wp_unslash( $_POST['channel_video_url'] ?? '' ) );
@@ -288,9 +288,55 @@ final class CPWP_Users {
 			$subtitles = json_decode( wp_unslash( $_POST['subtitles'] ), true );
 			update_post_meta( $post_id, '_cpwp_subtitles', is_array( $subtitles ) ? $subtitles : array() );
 		}
+
+		// Save taxonomies based on site type
+		$site_type = CPWP_Settings::get( 'site_type' );
+		if ( 'creator_platform' === $site_type ) {
+			if ( ! empty( $_POST['video_genre'] ) ) {
+				wp_set_post_terms( $post_id, array( absint( $_POST['video_genre'] ) ), 'cp_genre' );
+			}
+			if ( ! empty( $_POST['video_topic'] ) ) {
+				wp_set_post_terms( $post_id, array( absint( $_POST['video_topic'] ) ), 'cp_topic' );
+			}
+			if ( ! empty( $_POST['video_tags'] ) ) {
+				wp_set_post_terms( $post_id, sanitize_text_field( wp_unslash( $_POST['video_tags'] ) ), 'cp_tag' );
+			}
+		} elseif ( 'gaming' === $site_type ) {
+			if ( ! empty( $_POST['video_genre'] ) ) {
+				wp_set_post_terms( $post_id, array( absint( $_POST['video_genre'] ) ), 'cp_genre' );
+			}
+			if ( ! empty( $_POST['video_game'] ) ) {
+				wp_set_post_terms( $post_id, array( absint( $_POST['video_game'] ) ), 'cp_game' );
+			}
+			if ( ! empty( $_POST['video_tags'] ) ) {
+				wp_set_post_terms( $post_id, sanitize_text_field( wp_unslash( $_POST['video_tags'] ) ), 'cp_tag' );
+			}
+		} elseif ( 'podcast' === $site_type ) {
+			if ( ! empty( $_POST['video_genre'] ) ) {
+				wp_set_post_terms( $post_id, array( absint( $_POST['video_genre'] ) ), 'cp_genre' );
+			}
+			if ( ! empty( $_POST['video_topic'] ) ) {
+				wp_set_post_terms( $post_id, array( absint( $_POST['video_topic'] ) ), 'cp_topic' );
+			}
+		}
 		
 		return array( '', __( 'Your channel video has been published.', 'cp-wp-plugin' ) );
 	}
+
+	public static function ajax_publish_channel_video() {
+		if ( ! isset( $_POST['cpwp_channel_video_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['cpwp_channel_video_nonce'] ) ), 'cpwp_channel_video' ) ) {
+			echo '<div class="cp-auth-error">' . esc_html__( 'Invalid security token.', 'cp-wp-plugin' ) . '</div>';
+			wp_die();
+		}
+		list( $error, $success ) = self::publish_channel_video();
+		if ( $error ) {
+			echo '<div class="cp-auth-error">' . esc_html( $error ) . '</div>';
+		} else {
+			echo esc_html( $success );
+		}
+		wp_die();
+	}
+
 
 	private static function render_channel_video_form() {
 		if ( ! CPWP_Settings::get( 'enable_creator_channels' ) || ! CPWP_Channels::get() ) return;

@@ -164,6 +164,19 @@ document.addEventListener("DOMContentLoaded", () => {
     formData.append("chapters", JSON.stringify(chapters));
     formData.append("subtitles", JSON.stringify(subtitles));
 
+    const genreSelect = document.getElementById("upload-genre");
+    if (genreSelect) formData.append("video_genre", genreSelect.value);
+
+    const topicSelect = document.getElementById("upload-topic");
+    if (topicSelect) formData.append("video_topic", topicSelect.value);
+
+    const gameSelect = document.getElementById("upload-game");
+    if (gameSelect) formData.append("video_game", gameSelect.value);
+
+    const tagsInput = document.getElementById("upload-tags");
+    if (tagsInput) formData.append("video_tags", tagsInput.value);
+
+
     try {
       const response = await fetch(cpwpUpload.ajaxUrl, {
         method: "POST",

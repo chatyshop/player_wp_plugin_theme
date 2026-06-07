@@ -73,12 +73,37 @@ get_header();
 					<?php cp_theme_video_details( $post_id ); ?>
 				</div>
 
-				<!-- Categories -->
-				<?php if ( $categories ) : ?>
-				<div class="cp-yt-watch-tags">
-					<?php foreach ( $categories as $cat ) : ?>
-					<a class="cp-yt-tag" href="<?php echo esc_url( get_category_link( $cat ) ); ?>">#<?php echo esc_html( $cat->name ); ?></a>
-					<?php endforeach; ?>
+				<!-- Genres, Topics, and Tags -->
+				<?php 
+				$genres = get_the_terms( $post_id, 'cp_genre' ) ?: array();
+				$topics = get_the_terms( $post_id, 'cp_topic' ) ?: array();
+				$tags   = get_the_terms( $post_id, 'cp_tag' ) ?: array();
+				
+				if ( ! empty( $genres ) && ! is_wp_error( $genres ) || ! empty( $topics ) && ! is_wp_error( $topics ) || ! empty( $tags ) && ! is_wp_error( $tags ) ) :
+				?>
+				<div class="cp-video-meta-taxonomies" style="margin-top: 15px; display: flex; flex-direction: column; gap: 10px;">
+					<?php if ( ! empty( $genres ) && ! is_wp_error( $genres ) || ! empty( $topics ) && ! is_wp_error( $topics ) ) : ?>
+					<div class="cp-video-meta-badges" style="display: flex; flex-wrap: wrap; gap: 8px;">
+						<?php if ( ! empty( $genres ) && ! is_wp_error( $genres ) ) : foreach ( $genres as $genre ) : ?>
+							<a href="<?php echo esc_url( get_term_link( $genre ) ); ?>" class="cp-badge cp-genre-badge" style="background: var(--cp-soft); color: var(--cp-accent); border: 1px solid var(--cp-line); padding: 4px 10px; border-radius: 999px; text-decoration: none; font-size: 0.8rem; font-weight: 600;">
+								<?php echo esc_html( $genre->name ); ?>
+							</a>
+						<?php endforeach; endif; ?>
+						<?php if ( ! empty( $topics ) && ! is_wp_error( $topics ) ) : foreach ( $topics as $topic ) : ?>
+							<a href="<?php echo esc_url( get_term_link( $topic ) ); ?>" class="cp-badge cp-topic-badge" style="background: var(--cp-soft); color: var(--cp-accent); border: 1px solid var(--cp-line); padding: 4px 10px; border-radius: 999px; text-decoration: none; font-size: 0.8rem; font-weight: 600;">
+								<?php echo esc_html( $topic->name ); ?>
+							</a>
+						<?php endforeach; endif; ?>
+					</div>
+					<?php endif; ?>
+
+					<?php if ( ! empty( $tags ) && ! is_wp_error( $tags ) ) : ?>
+					<div class="cp-yt-watch-tags">
+						<?php foreach ( $tags as $tag ) : ?>
+						<a class="cp-yt-tag" href="<?php echo esc_url( get_term_link( $tag ) ); ?>">#<?php echo esc_html( $tag->name ); ?></a>
+						<?php endforeach; ?>
+					</div>
+					<?php endif; ?>
 				</div>
 				<?php endif; ?>
 

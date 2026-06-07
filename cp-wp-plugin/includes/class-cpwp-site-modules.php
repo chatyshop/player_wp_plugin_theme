@@ -53,8 +53,20 @@ final class CPWP_Site_Modules {
 	}
 
 	public static function add_meta_boxes() {
-		add_meta_box( 'cpwp-module-video', __( 'Site Type and Access Details', 'cp-wp-plugin' ), array( __CLASS__, 'render_video_fields' ), 'cp_video', 'side', 'default' );
-		foreach ( array_keys( self::types() ) as $type ) if ( self::enabled( $type ) ) add_meta_box( 'cpwp-module-details', __( 'Module Details', 'cp-wp-plugin' ), array( __CLASS__, 'render_module_fields' ), $type, 'side', 'default' );
+		$access_post_types = array_merge(
+			array( 'cp_video', 'post', 'page' ),
+			array_keys( self::types() )
+		);
+		foreach ( $access_post_types as $pt ) {
+			if ( 'cp_video' === $pt || 'post' === $pt || 'page' === $pt ) {
+				add_meta_box( 'cpwp-module-video', __( 'Access & Visibility Details', 'cp-wp-plugin' ), array( __CLASS__, 'render_video_fields' ), $pt, 'side', 'default' );
+			} else {
+				if ( self::enabled( $pt ) ) {
+					add_meta_box( 'cpwp-module-video', __( 'Access & Visibility Details', 'cp-wp-plugin' ), array( __CLASS__, 'render_video_fields' ), $pt, 'side', 'default' );
+					add_meta_box( 'cpwp-module-details', __( 'Module Details', 'cp-wp-plugin' ), array( __CLASS__, 'render_module_fields' ), $pt, 'side', 'default' );
+				}
+			}
+		}
 	}
 
 	public static function render_video_fields( $post ) {
@@ -62,16 +74,19 @@ final class CPWP_Site_Modules {
 		self::select( $post->ID, '_cpwp_visibility', 'Visibility', array( 'public' => 'Public', 'members' => 'Logged-in users', 'roles' => 'Selected roles', 'unlisted' => 'Unlisted' ) );
 		self::input( $post->ID, '_cpwp_access_roles', 'Allowed roles (comma separated)' );
 		self::input( $post->ID, '_cpwp_release_date', 'Release/drip date', 'datetime-local' );
-		if ( class_exists( 'CPWP_Streaming' ) && 'streaming' === CPWP_Settings::get( 'site_type' ) ) CPWP_Streaming::render_fields( $post );
-		self::input( $post->ID, '_cpwp_series_name', 'Series/course/show name' );
-		self::input( $post->ID, '_cpwp_season', 'Season/section number', 'number' );
-		self::input( $post->ID, '_cpwp_episode', 'Episode/lesson number', 'number' );
-		self::input( $post->ID, '_cpwp_age_rating', 'Age rating' );
 		self::input( $post->ID, '_cpwp_geo_allow', 'Allowed country codes' );
-		self::input( $post->ID, '_cpwp_download_url', 'Download URL', 'url' );
-		self::input( $post->ID, '_cpwp_affiliate_url', 'Affiliate URL', 'url' );
-		self::input( $post->ID, '_cpwp_correction', 'Correction/fact-check note' );
-		echo '<label><input type="checkbox" name="_cpwp_vertical" value="1" ' . checked( get_post_meta( $post->ID, '_cpwp_vertical', true ), '1', false ) . '> ' . esc_html__( 'Vertical/short video', 'cp-wp-plugin' ) . '</label>';
+
+		if ( 'cp_video' === $post->post_type ) {
+			if ( class_exists( 'CPWP_Streaming' ) && 'streaming' === CPWP_Settings::get( 'site_type' ) ) CPWP_Streaming::render_fields( $post );
+			self::input( $post->ID, '_cpwp_series_name', 'Series/course/show name' );
+			self::input( $post->ID, '_cpwp_season', 'Season/section number', 'number' );
+			self::input( $post->ID, '_cpwp_episode', 'Episode/lesson number', 'number' );
+			self::input( $post->ID, '_cpwp_age_rating', 'Age rating' );
+			self::input( $post->ID, '_cpwp_download_url', 'Download URL', 'url' );
+			self::input( $post->ID, '_cpwp_affiliate_url', 'Affiliate URL', 'url' );
+			self::input( $post->ID, '_cpwp_correction', 'Correction/fact-check note' );
+			echo '<label><input type="checkbox" name="_cpwp_vertical" value="1" ' . checked( get_post_meta( $post->ID, '_cpwp_vertical', true ), '1', false ) . '> ' . esc_html__( 'Vertical/short video', 'cp-wp-plugin' ) . '</label>';
+		}
 	}
 
 	public static function render_module_fields( $post ) {
@@ -109,13 +124,17 @@ final class CPWP_Site_Modules {
 	}
 
 	public static function protect_video() {
-		if ( ! is_singular( 'cp_video' ) ) return;
+		$types = array_merge(
+			array( 'cp_video', 'post', 'page' ),
+			array_keys( self::types() )
+		);
+		if ( ! is_singular( $types ) ) return;
 		if ( ! self::can_access_video( get_queried_object_id() ) ) {
-			set_query_var( 'cpwp_unavailable_message', __( 'Your account or location cannot access this video.', 'cp-wp-plugin' ) );
+			set_query_var( 'cpwp_unavailable_message', __( 'You do not have permission to view this content.', 'cp-wp-plugin' ) );
 			status_header( 403 ); nocache_headers();
 			$template = locate_template( 'cpwp-unavailable.php' );
 			if ( $template ) { include $template; exit; }
-			self::deny( __( 'Your account or location cannot access this video.', 'cp-wp-plugin' ) );
+			self::deny( __( 'You do not have permission to view this content.', 'cp-wp-plugin' ) );
 		}
 	}
 
@@ -123,6 +142,34 @@ final class CPWP_Site_Modules {
 		if ( current_user_can( 'edit_post', $post_id ) ) return true;
 		$release = get_post_meta( $post_id, '_cpwp_release_date', true );
 		if ( $release && strtotime( $release ) > current_time( 'timestamp' ) ) return false;
+
+		// Subscription Payment Gating Integration
+		if ( class_exists( 'CPWP_Settings' ) && CPWP_Settings::get( 'enable_subscriptions' ) ) {
+			$mode = CPWP_Settings::get( 'subscription_plugin' );
+			
+			// 1. Paid Memberships Pro integration
+			if ( 'pmpro' === $mode && function_exists( 'pmpro_has_membership_access' ) ) {
+				if ( ! pmpro_has_membership_access( $post_id ) ) {
+					return false;
+				}
+			}
+			
+			// 2. WooCommerce Memberships integration
+			if ( 'woocommerce' === $mode && function_exists( 'wc_memberships_is_post_restricted' ) ) {
+				if ( wc_memberships_is_post_restricted( $post_id ) && ! current_user_can( 'view_post', $post_id ) ) {
+					return false;
+				}
+			}
+			
+			// 3. MemberPress integration
+			if ( 'memberpress' === $mode && class_exists( 'MeprRule' ) ) {
+				$post_obj = get_post( $post_id );
+				if ( MeprRule::is_locked( $post_obj ) ) {
+					return false;
+				}
+			}
+		}
+
 		$visibility = get_post_meta( $post_id, '_cpwp_visibility', true );
 		if ( 'members' === $visibility && ! is_user_logged_in() ) return false;
 		if ( 'roles' === $visibility ) {

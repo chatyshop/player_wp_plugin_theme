@@ -94,6 +94,7 @@ final class CPWP_Plugin {
 		add_action( 'wp_ajax_cpwp_test_storage', array( 'CPWP_Storage', 'ajax_test' ) );
 		add_action( 'wp_ajax_cpwp_presign_upload', array( 'CPWP_Storage', 'ajax_presign_upload' ) );
 		add_action( 'wp_ajax_cpwp_channel_presign_upload', array( 'CPWP_Channels', 'ajax_presign_upload' ) );
+		add_action( 'wp_ajax_cpwp_publish_channel_video', array( 'CPWP_Users', 'ajax_publish_channel_video' ) );
 		add_action( 'wp_ajax_cpwp_list_storage', array( 'CPWP_Storage', 'ajax_list' ) );
 		add_action( 'wp_ajax_cpwp_delete_storage', array( 'CPWP_Storage', 'ajax_delete' ) );
 		add_action( 'wp_ajax_cpwp_export_settings', array( 'CPWP_Settings', 'ajax_export' ) );

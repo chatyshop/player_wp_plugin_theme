@@ -8,11 +8,13 @@ final class CPWP_Channels {
 	const FOLLOWERS_META = '_cpwp_channel_followers';
 
 	public static function register_routes() {
+		if ( 'creator_platform' !== CPWP_Settings::get( 'site_type' ) ) return;
 		add_rewrite_rule( '^channel/([^/]+)/?$', 'index.php?cpwp_channel=$matches[1]', 'top' );
 		add_rewrite_tag( '%cpwp_channel%', '([^&]+)' );
 	}
 
 	public static function register_rest_routes() {
+		if ( 'creator_platform' !== CPWP_Settings::get( 'site_type' ) ) return;
 		register_rest_route( 'cpwp/v1', '/channels/(?P<owner_id>\d+)/follow', array(
 			array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'follow_state' ), 'permission_callback' => '__return_true' ),
 			array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'toggle_follow' ), 'permission_callback' => 'is_user_logged_in' ),
@@ -50,6 +52,7 @@ final class CPWP_Channels {
 	}
 
 	public static function render_public() {
+		if ( 'creator_platform' !== CPWP_Settings::get( 'site_type' ) ) return;
 		$slug = sanitize_title( get_query_var( 'cpwp_channel' ) ); if ( ! $slug ) return;
 		$owner = 0; $channel = array();
 		foreach ( get_users( array( 'meta_key' => self::META ) ) as $user ) { $candidate = self::get( $user->ID ); if ( ( $candidate['slug'] ?? '' ) === $slug ) { $owner = $user->ID; $channel = $candidate; break; } }

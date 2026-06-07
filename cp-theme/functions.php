@@ -9,7 +9,10 @@ function cp_theme_setup() {
 	add_theme_support( 'post-thumbnails' );
 	add_theme_support( 'html5', array( 'search-form', 'comment-form', 'comment-list', 'gallery', 'caption', 'style', 'script' ) );
 	add_theme_support( 'custom-logo', array( 'height' => 80, 'width' => 240, 'flex-height' => true, 'flex-width' => true ) );
-	register_nav_menus( array( 'primary' => __( 'Primary Menu', 'cp-theme' ) ) );
+	register_nav_menus( array(
+		'primary' => __( 'Primary Menu', 'cp-theme' ),
+		'footer'  => __( 'Footer Menu', 'cp-theme' ),
+	) );
 }
 add_action( 'after_setup_theme', 'cp_theme_setup' );
 
@@ -190,6 +193,25 @@ function cp_theme_assets() {
 	if ( is_page_template( 'page-cases.php' ) && class_exists( 'CPWP_Assets' ) ) CPWP_Assets::enqueue_player_assets();
 	if ( get_query_var( 'cpwp_channel' ) && class_exists( 'CPWP_Assets' ) ) CPWP_Assets::enqueue_player_assets();
 	if ( is_singular( array( 'cp_course', 'cp_lesson', 'cp_quiz' ) ) && class_exists( 'CPWP_Assets' ) ) CPWP_Assets::enqueue_player_assets();
+	$suite = get_query_var( 'cpwp_suite' );
+	if ( 'studio' === $suite && class_exists( 'CPWP_Assets' ) ) {
+		CPWP_Assets::enqueue_player_assets();
+		wp_enqueue_script( 'cpwp-studio', get_template_directory_uri() . '/assets/studio.js', array(), '1.0.0', true );
+		wp_localize_script( 'cpwp-studio', 'cpwpStudio', array(
+			'ajaxUrl'      => admin_url( 'admin-ajax.php' ),
+			'restUrl'      => esc_url_raw( rest_url( 'cpwp/v1' ) ),
+			'nonce'        => wp_create_nonce( 'wp_rest' ),
+			'channelNonce' => wp_create_nonce( 'cpwp_channel_upload' ),
+		) );
+	}
+	if ( 'upload' === $suite && class_exists( 'CPWP_Assets' ) ) {
+		CPWP_Assets::enqueue_player_assets();
+		wp_enqueue_script( 'cpwp-upload', get_template_directory_uri() . '/assets/upload.js', array(), '1.0.0', true );
+		wp_localize_script( 'cpwp-upload', 'cpwpUpload', array(
+			'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+			'nonce'   => wp_create_nonce( 'cpwp_channel_upload' ),
+		) );
+	}
 }
 add_action( 'wp_enqueue_scripts', 'cp_theme_assets' );
 
@@ -207,11 +229,151 @@ function cp_theme_body_class( $classes ) {
 }
 add_filter( 'body_class', 'cp_theme_body_class' );
 
+function cp_theme_get_upgrade_url() {
+	$custom_url = cp_theme_cp_setting( 'subscription_checkout_url', '' );
+	if ( ! empty( $custom_url ) ) {
+		return esc_url( $custom_url );
+	}
+
+	$plugin = cp_theme_cp_setting( 'subscription_plugin', 'pmpro' );
+	if ( 'pmpro' === $plugin && function_exists( 'pmpro_url' ) ) {
+		return pmpro_url( 'levels' );
+	}
+	if ( 'woocommerce' === $plugin && function_exists( 'wc_get_page_permalink' ) ) {
+		return wc_get_page_permalink( 'shop' );
+	}
+	if ( 'memberpress' === $plugin && class_exists( 'MeprProductsHelper' ) ) {
+		return home_url( '/register' );
+	}
+
+	return wp_registration_url() ?: home_url( '/wp-login.php?action=register' );
+}
+
+function cp_theme_get_pricing_plans() {
+	$plugin = cp_theme_cp_setting( 'subscription_plugin', 'pmpro' );
+	
+	if ( 'pmpro' === $plugin && function_exists( 'pmpro_getAllLevels' ) ) {
+		$levels = pmpro_getAllLevels( false, true );
+		if ( ! empty( $levels ) ) {
+			$plans = array();
+			$count = 0;
+			foreach ( $levels as $level ) {
+				$count++;
+				$desc = $level->description;
+				if ( empty( $desc ) ) {
+					$desc = sprintf( __( 'Unlock %s level content.', 'cp-theme' ), $level->name );
+				}
+				
+				$features = array_filter( array_map( 'trim', explode( "\n", str_replace( "\r", "", $level->description ) ) ) );
+				if ( empty( $features ) || count( $features ) <= 1 ) {
+					$features = array(
+						sprintf( __( 'Access to %s content', 'cp-theme' ), $level->name ),
+						__( 'HD playback streaming', 'cp-theme' ),
+						__( 'Interactive comments & community', 'cp-theme' )
+					);
+				} else {
+					$desc = sprintf( __( 'Get access to our premium %s membership.', 'cp-theme' ), $level->name );
+				}
+				
+				$price = '';
+				if ( pmpro_isLevelFree( $level ) ) {
+					$price = __( 'Free', 'cp-theme' );
+				} else {
+					$price = '$' . number_format_i18n( $level->initial_payment );
+					if ( ! empty( $level->billing_amount ) && $level->billing_amount != 0 ) {
+						$cycle = '';
+						if ( $level->cycle_number == 1 ) {
+							$cycle = '/' . $level->cycle_period;
+						} else {
+							$cycle = '/' . $level->cycle_number . ' ' . $level->cycle_period . 's';
+						}
+						$price = '$' . number_format_i18n( $level->billing_amount ) . $cycle;
+					}
+				}
+
+				$plans[] = array(
+					'id'          => $level->id,
+					'name'        => $level->name,
+					'description' => $desc,
+					'price'       => $price,
+					'url'         => pmpro_url( 'checkout', '?level=' . $level->id ),
+					'features'    => $features,
+					'button_text' => pmpro_isLevelFree( $level ) ? __( 'Get Started', 'cp-theme' ) : __( 'Upgrade Now', 'cp-theme' ),
+					'recommended' => ( 2 === $count ),
+				);
+			}
+			return $plans;
+		}
+	}
+
+	$free_url = cp_theme_cp_setting( 'pricing_free_url', '' );
+	if ( empty( $free_url ) ) {
+		$free_url = wp_registration_url() ?: home_url( '/wp-login.php?action=register' );
+	}
+	
+	$pro_url = cp_theme_cp_setting( 'pricing_pro_url', '' );
+	if ( empty( $pro_url ) ) {
+		$pro_url = cp_theme_get_upgrade_url();
+	}
+
+	$premium_url = cp_theme_cp_setting( 'pricing_premium_url', '' );
+	if ( empty( $premium_url ) ) {
+		$premium_url = cp_theme_get_upgrade_url();
+	}
+
+	$free_feats = array_filter( array_map( 'trim', explode( "\n", str_replace( "\r", "", cp_theme_cp_setting( 'pricing_free_features', '' ) ) ) ) );
+	$pro_feats = array_filter( array_map( 'trim', explode( "\n", str_replace( "\r", "", cp_theme_cp_setting( 'pricing_pro_features', '' ) ) ) ) );
+	$prem_feats = array_filter( array_map( 'trim', explode( "\n", str_replace( "\r", "", cp_theme_cp_setting( 'pricing_premium_features', '' ) ) ) ) );
+
+	return array(
+		array(
+			'name'        => __( 'Free', 'cp-theme' ),
+			'description' => __( 'Perfect to explore and test our platform features.', 'cp-theme' ),
+			'price'       => cp_theme_cp_setting( 'pricing_free_price', '$0' ),
+			'url'         => esc_url( $free_url ),
+			'features'    => $free_feats,
+			'button_text' => __( 'Get Started', 'cp-theme' ),
+			'recommended' => false,
+		),
+		array(
+			'name'        => __( 'Pro', 'cp-theme' ),
+			'description' => __( 'Great for regular viewers and active community members.', 'cp-theme' ),
+			'price'       => cp_theme_cp_setting( 'pricing_pro_price', '$9.99 / month' ),
+			'url'         => esc_url( $pro_url ),
+			'features'    => $pro_feats,
+			'button_text' => __( 'Upgrade Now', 'cp-theme' ),
+			'recommended' => true,
+		),
+		array(
+			'name'        => __( 'Premium', 'cp-theme' ),
+			'description' => __( 'Full unrestricted access for true power users.', 'cp-theme' ),
+			'price'       => cp_theme_cp_setting( 'pricing_premium_price', '$19.99 / month' ),
+			'url'         => esc_url( $premium_url ),
+			'features'    => $prem_feats,
+			'button_text' => __( 'Go Unlimited', 'cp-theme' ),
+			'recommended' => false,
+		),
+	);
+}
+
 function cp_theme_video_card( $post_id ) {
+	$can_access = true;
+	if ( class_exists( 'CPWP_Site_Modules' ) ) {
+		$can_access = CPWP_Site_Modules::can_access_video( $post_id );
+	}
+
 	if ( 'cp_video' !== get_post_type( $post_id ) ) {
 		?>
 		<article class="cp-theme-card">
-			<a class="cp-theme-thumb" href="<?php echo esc_url( get_permalink( $post_id ) ); ?>"><?php echo get_the_post_thumbnail( $post_id, 'medium_large' ); ?></a>
+			<a class="cp-theme-thumb" href="<?php echo esc_url( get_permalink( $post_id ) ); ?>">
+				<?php echo get_the_post_thumbnail( $post_id, 'medium_large' ); ?>
+				<?php if ( ! $can_access ) : ?>
+					<span class="cp-card-lock-badge" style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.78); color: #fff; padding: 4px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; display: flex; align-items: center; gap: 4px; border: 1px solid rgba(255,255,255,0.15); line-height: 1; z-index: 2;">
+						<svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" style="margin-top:-1px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+						<?php esc_html_e( 'LOCKED', 'cp-theme' ); ?>
+					</span>
+				<?php endif; ?>
+			</a>
 			<h3><a href="<?php echo esc_url( get_permalink( $post_id ) ); ?>"><?php echo esc_html( get_the_title( $post_id ) ); ?></a></h3>
 			<p class="cp-theme-meta"><?php echo esc_html( get_the_date( '', $post_id ) ); ?></p>
 		</article>
@@ -228,6 +390,12 @@ function cp_theme_video_card( $post_id ) {
 				<?php echo get_the_post_thumbnail( $post_id, 'medium_large', array( 'loading' => 'lazy' ) ); ?>
 			<?php endif; ?>
 			<span class="cp-theme-play" aria-hidden="true">&#9654;</span>
+			<?php if ( ! $can_access ) : ?>
+				<span class="cp-card-lock-badge" style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.78); color: #fff; padding: 4px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; display: flex; align-items: center; gap: 4px; border: 1px solid rgba(255,255,255,0.15); line-height: 1; z-index: 2;">
+					<svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" style="margin-top:-1px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+					<?php esc_html_e( 'LOCKED', 'cp-theme' ); ?>
+				</span>
+			<?php endif; ?>
 		</a>
 		<h3><a href="<?php echo esc_url( get_permalink( $post_id ) ); ?>"><?php echo esc_html( get_the_title( $post_id ) ); ?></a></h3>
 		<?php if ( $series || $rating ) : ?><p class="cp-theme-labels"><?php if ( $series ) : ?><span><?php echo esc_html( $series ); ?></span><?php endif; ?><?php if ( $rating ) : ?><span><?php echo esc_html( $rating ); ?></span><?php endif; ?></p><?php endif; ?>
@@ -265,6 +433,492 @@ function cp_theme_preset_navigation() {
 }
 
 function cp_theme_render_suite( $slug, $items ) {
+	cp_theme_ensure_default_terms();
+	if ( 'studio' === $slug ) {
+		if ( ! class_exists( 'CPWP_Channels' ) || ! CPWP_Channels::get() ) {
+			echo '<p>' . esc_html__( 'Please create a channel before accessing the Creator Studio.', 'cp-theme' ) . '</p>';
+			return;
+		}
+		$user_id = get_current_user_id();
+		$videos = get_posts( array(
+			'post_type'      => 'cp_video',
+			'posts_per_page' => 100,
+			'author'         => $user_id,
+			'post_status'    => array( 'publish', 'draft' )
+		) );
+		$channel = CPWP_Channels::get();
+		?>
+		<div class="cp-studio-container">
+			<nav class="cp-studio-tabs">
+				<button class="cp-studio-tab is-active" data-tab="dashboard">Dashboard</button>
+				<button class="cp-studio-tab" data-tab="content">Content</button>
+				<button class="cp-studio-tab" data-tab="comments">Comments</button>
+				<button class="cp-studio-tab" data-tab="customization">Customization</button>
+			</nav>
+
+			<!-- Panel: Dashboard -->
+			<div class="cp-studio-panel is-active" data-panel="dashboard">
+				<?php if ( class_exists( 'CPWP_Creator_Platform' ) ) CPWP_Creator_Platform::render_profile(); ?>
+			</div>
+
+			<!-- Panel: Content -->
+			<div class="cp-studio-panel" data-panel="content">
+				<div class="cp-table-wrap">
+					<table class="cp-suite-table cp-studio-meta-table">
+						<thead>
+							<tr>
+								<th>Video</th>
+								<th>Status</th>
+								<th>Views</th>
+								<th>Actions</th>
+							</tr>
+						</thead>
+						<tbody>
+							<?php foreach ( $videos as $video ) : 
+								$video_url = get_post_meta( $video->ID, '_cpwp_mp4', true );
+								$poster = get_post_meta( $video->ID, '_cpwp_poster_url', true ) ?: get_post_meta( $video->ID, '_cpwp_thumbnail_sprite', true );
+								$autoplay = get_post_meta( $video->ID, '_cpwp_autoplay', true );
+								$loop = get_post_meta( $video->ID, '_cpwp_loop', true );
+								$muted = get_post_meta( $video->ID, '_cpwp_muted', true );
+								$allow_comments = $video->comment_status === 'open';
+								$preload = get_post_meta( $video->ID, '_cpwp_preload', true ) ?: 'metadata';
+								$accent = get_post_meta( $video->ID, '_cpwp_accent_color', true ) ?: '#6d5dfc';
+								$chapters = get_post_meta( $video->ID, '_cpwp_chapters', true ) ?: array();
+								$subtitles = get_post_meta( $video->ID, '_cpwp_subtitles', true ) ?: array();
+								$views = absint( get_post_meta( $video->ID, '_cpwp_views', true ) );
+
+								$genre_ids = wp_get_post_terms( $video->ID, 'cp_genre', array( 'fields' => 'ids' ) );
+								$genre_id = ( ! empty( $genre_ids ) && ! is_wp_error( $genre_ids ) ) ? $genre_ids[0] : '';
+
+								$topic_ids = wp_get_post_terms( $video->ID, 'cp_topic', array( 'fields' => 'ids' ) );
+								$topic_id = ( ! empty( $topic_ids ) && ! is_wp_error( $topic_ids ) ) ? $topic_ids[0] : '';
+
+								$game_ids = wp_get_post_terms( $video->ID, 'cp_game', array( 'fields' => 'ids' ) );
+								$game_id = ( ! empty( $game_ids ) && ! is_wp_error( $game_ids ) ) ? $game_ids[0] : '';
+
+								$tag_names = wp_get_post_terms( $video->ID, 'cp_tag', array( 'fields' => 'names' ) );
+								$tag_str = ( ! empty( $tag_names ) && ! is_wp_error( $tag_names ) ) ? implode( ', ', $tag_names ) : '';
+							?>
+							<tr data-video-id="<?php echo $video->ID; ?>">
+								<td><strong><?php echo esc_html( $video->post_title ); ?></strong></td>
+								<td class="cp-video-status"><?php echo esc_html( ucfirst( $video->post_status ) ); ?></td>
+								<td><?php echo $views; ?></td>
+								<td>
+									<button class="cp-button cp-btn-toggle"><?php echo $video->post_status === 'publish' ? 'Draft' : 'Publish'; ?></button>
+									<button class="cp-button cp-btn-edit" 
+											data-id="<?php echo $video->ID; ?>"
+											data-title="<?php echo esc_attr( $video->post_title ); ?>"
+											data-description="<?php echo esc_attr( $video->post_content ); ?>"
+											data-video-url="<?php echo esc_url( $video_url ); ?>"
+											data-poster="<?php echo esc_url( $poster ); ?>"
+											data-autoplay="<?php echo $autoplay ? '1' : ''; ?>"
+											data-loop="<?php echo $loop ? '1' : ''; ?>"
+											data-muted="<?php echo $muted ? '1' : ''; ?>"
+											data-allow-comments="<?php echo $allow_comments ? '1' : ''; ?>"
+											data-preload="<?php echo esc_attr( $preload ); ?>"
+											data-accent="<?php echo esc_attr( $accent ); ?>"
+											data-genre="<?php echo esc_attr( $genre_id ); ?>"
+											data-topic="<?php echo esc_attr( $topic_id ); ?>"
+											data-game="<?php echo esc_attr( $game_id ); ?>"
+											data-tags="<?php echo esc_attr( $tag_str ); ?>"
+											data-chapters="<?php echo esc_attr( json_encode( $chapters ) ); ?>"
+											data-subtitles="<?php echo esc_attr( json_encode( $subtitles ) ); ?>">Edit</button>
+									<button class="cp-button cp-btn-delete cp-danger-button">Delete</button>
+								</td>
+							</tr>
+							<?php endforeach; ?>
+						</tbody>
+					</table>
+				</div>
+			</div>
+
+			<!-- Panel: Comments -->
+			<div class="cp-studio-panel" data-panel="comments">
+				<div class="cp-table-wrap">
+					<table class="cp-suite-table cp-studio-meta-table">
+						<thead>
+							<tr>
+								<th>Comment</th>
+								<th>Video</th>
+								<th>Status</th>
+								<th>Actions</th>
+							</tr>
+						</thead>
+						<tbody>
+							<?php
+							$my_video_ids = wp_list_pluck( $videos, 'ID' );
+							if ( $my_video_ids ) {
+								$comments = get_comments( array( 'post__in' => $my_video_ids, 'status' => 'all' ) );
+								foreach ( $comments as $comment ) :
+									$comment_status = wp_get_comment_status( $comment->comment_ID );
+							?>
+							<tr data-comment-id="<?php echo $comment->comment_ID; ?>">
+								<td>
+									<strong><?php echo esc_html( $comment->comment_author ); ?></strong>: 
+									<?php echo esc_html( $comment->comment_content ); ?>
+								</td>
+								<td><a href="<?php echo esc_url( get_permalink( $comment->comment_post_ID ) ); ?>"><?php echo esc_html( get_the_title( $comment->comment_post_ID ) ); ?></a></td>
+								<td class="cp-comment-status"><?php echo esc_html( ucfirst( $comment_status ) ); ?></td>
+								<td>
+									<button class="cp-button cp-btn-comment-toggle" data-action="<?php echo $comment_status === 'approved' ? 'unapprove' : 'approve'; ?>">
+										<?php echo $comment_status === 'approved' ? 'Hold' : 'Approve'; ?>
+									</button>
+									<button class="cp-button cp-btn-comment-delete cp-danger-button">Delete</button>
+								</td>
+							</tr>
+							<?php 
+								endforeach;
+							} else {
+								echo '<tr><td colspan="4">No comments found.</td></tr>';
+							}
+							?>
+						</tbody>
+					</table>
+				</div>
+			</div>
+
+			<!-- Panel: Customization -->
+			<div class="cp-studio-panel" data-panel="customization">
+				<form method="post" class="cp-auth-form">
+					<?php wp_nonce_field( 'cpwp_channel', 'cpwp_channel_nonce' ); ?>
+					<label><span>Channel Name</span><input name="channel_name" type="text" value="<?php echo esc_attr( $channel['name'] ?? '' ); ?>" required></label>
+					<label><span>Description</span><textarea name="channel_description" rows="4"><?php echo esc_html( $channel['description'] ?? '' ); ?></textarea></label>
+					<label><span>Channel Logo URL</span><input name="channel_logo_url" type="url" value="<?php echo esc_url( $channel['logo_url'] ?? '' ); ?>"></label>
+					<label><span>Channel Banner URL</span><input name="channel_banner_url" type="url" value="<?php echo esc_url( $channel['banner_url'] ?? '' ); ?>"></label>
+					<label><span>Category</span><input name="channel_category" type="text" value="<?php echo esc_attr( $channel['category'] ?? '' ); ?>"></label>
+					<label><span>Accent Color</span><input name="channel_accent_color" type="color" value="<?php echo esc_attr( $channel['accent_color'] ?? '#6d5dfc' ); ?>"></label>
+					<button class="cp-button" name="cpwp_save_channel" value="1" type="submit">Save Channel Settings</button>
+				</form>
+			</div>
+
+		</div>
+
+		<!-- Edit Video Modal -->
+		<div id="cp-edit-modal" class="cp-report-dialog" style="display:none;" role="dialog" aria-modal="true">
+			<form id="cp-edit-video-form" class="cp-report-form" style="max-width:800px; width:90%; overflow-y:auto; max-height:90vh;">
+				<button type="button" class="cp-dialog-close" id="cp-close-modal" aria-label="Close">×</button>
+				<h2>Edit Video Details</h2>
+				<input type="hidden" id="edit-video-id" name="video_id">
+				
+				<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+					<div>
+						<label><span>Title</span><input id="edit-video-title" type="text" required></label>
+						<label><span>Description</span><textarea id="edit-video-description" rows="4"></textarea></label>
+						<label><span>Video URL</span><input id="edit-video-url" type="url" required></label>
+						<label><span>Poster Image URL</span><input id="edit-video-poster" type="url"></label>
+					</div>
+					<div>
+						<label><span>Preload Mode</span>
+							<select id="edit-video-preload">
+								<option value="none">None</option>
+								<option value="metadata">Metadata</option>
+								<option value="auto">Auto</option>
+							</select>
+						</label>
+						<label><span>Accent Color</span><input id="edit-video-accent" type="color"></label>
+						
+						<?php 
+						$site_type = cp_theme_cp_setting( 'site_type', 'default' );
+						if ( in_array( $site_type, array( 'creator_platform', 'gaming', 'podcast' ), true ) ) :
+							$genres = get_terms( array( 'taxonomy' => 'cp_genre', 'hide_empty' => false ) );
+							if ( ! is_wp_error( $genres ) && ! empty( $genres ) ) :
+							?>
+							<label><span>Genre</span>
+								<select id="edit-video-genre" name="video_genre">
+									<option value=""><?php esc_html_e( 'Select Genre...', 'cp-theme' ); ?></option>
+									<?php foreach ( $genres as $genre ) : ?>
+										<option value="<?php echo $genre->term_id; ?>"><?php echo esc_html( $genre->name ); ?></option>
+									<?php endforeach; ?>
+								</select>
+							</label>
+							<?php 
+							endif;
+
+							if ( in_array( $site_type, array( 'creator_platform', 'podcast' ), true ) ) :
+								$topics = get_terms( array( 'taxonomy' => 'cp_topic', 'hide_empty' => false ) );
+								if ( ! is_wp_error( $topics ) && ! empty( $topics ) ) :
+								?>
+								<label><span>Topic</span>
+									<select id="edit-video-topic" name="video_topic">
+										<option value=""><?php esc_html_e( 'Select Topic...', 'cp-theme' ); ?></option>
+										<?php foreach ( $topics as $topic ) : ?>
+											<option value="<?php echo $topic->term_id; ?>"><?php echo esc_html( $topic->name ); ?></option>
+										<?php endforeach; ?>
+									</select>
+								</label>
+								<?php 
+								endif;
+							endif;
+
+							if ( 'gaming' === $site_type ) :
+								$games = get_terms( array( 'taxonomy' => 'cp_game', 'hide_empty' => false ) );
+								if ( ! is_wp_error( $games ) && ! empty( $games ) ) :
+								?>
+								<label><span>Game</span>
+									<select id="edit-video-game" name="video_game">
+										<option value=""><?php esc_html_e( 'Select Game...', 'cp-theme' ); ?></option>
+										<?php foreach ( $games as $game ) : ?>
+											<option value="<?php echo $game->term_id; ?>"><?php echo esc_html( $game->name ); ?></option>
+										<?php endforeach; ?>
+									</select>
+								</label>
+								<?php 
+								endif;
+							endif;
+
+							if ( in_array( $site_type, array( 'creator_platform', 'gaming' ), true ) ) :
+							?>
+							<label><span>Video Tags (comma separated)</span>
+								<input id="edit-video-tags" name="video_tags" type="text" placeholder="e.g. gameplay, tutorial, review">
+							</label>
+							<?php 
+							endif;
+						endif;
+						?>
+
+						<label class="cp-filter-check"><input id="edit-video-autoplay" type="checkbox"> <span>Autoplay</span></label>
+						<label class="cp-filter-check"><input id="edit-video-loop" type="checkbox"> <span>Loop</span></label>
+						<label class="cp-filter-check"><input id="edit-video-muted" type="checkbox"> <span>Start Muted</span></label>
+						<label class="cp-filter-check"><input id="edit-video-allow-comments" type="checkbox"> <span>Allow Comments</span></label>
+					</div>
+				</div>
+
+				<div style="margin-top:20px;">
+					<h3>Chapters</h3>
+					<table id="edit-chapters-table" class="cp-suite-table">
+						<thead>
+							<tr><th>Time (seconds)</th><th>Chapter Title</th><th>Action</th></tr>
+						</thead>
+						<tbody></tbody>
+					</table>
+					<button type="button" class="cp-button cp-button-secondary" id="edit-add-chapter" style="margin-top:10px;">Add Chapter</button>
+				</div>
+
+				<div style="margin-top:20px; margin-bottom:20px;">
+					<h3>Subtitles</h3>
+					<table id="edit-subtitles-table" class="cp-suite-table">
+						<thead>
+							<tr><th>Lang Code</th><th>Label</th><th>VTT Source URL</th><th>Default</th><th>Action</th></tr>
+						</thead>
+						<tbody></tbody>
+					</table>
+					<button type="button" class="cp-button cp-button-secondary" id="edit-add-subtitle" style="margin-top:10px;">Add Subtitle</button>
+				</div>
+
+				<div style="display:flex; gap:10px; justify-content:flex-end;">
+					<button type="button" class="cp-button cp-button-secondary" id="cp-cancel-modal">Cancel</button>
+					<button type="submit" class="cp-button">Save Changes</button>
+				</div>
+			</form>
+		</div>
+		<?php
+		return;
+	}
+	if ( 'upload' === $slug ) {
+		if ( ! class_exists( 'CPWP_Channels' ) || ! CPWP_Channels::get() ) {
+			echo '<p>' . esc_html__( 'Please create a channel before uploading videos.', 'cp-theme' ) . '</p>';
+			return;
+		}
+		?>
+		<div class="cp-upload-wizard">
+			<form id="cp-upload-wizard-form" class="cp-auth-form">
+				<?php wp_nonce_field( 'cpwp_channel_video', 'cpwp_channel_video_nonce' ); ?>
+				
+				<!-- Hidden inputs for player defaults -->
+				<input type="hidden" name="accent_color" value="<?php echo esc_attr( get_option('cpwp_settings')['accent_color'] ?? '#6d5dfc' ); ?>">
+				<input type="hidden" name="preload" value="metadata">
+				<input type="hidden" name="autoplay" value="">
+				<input type="hidden" name="loop" value="">
+				<input type="hidden" name="muted" value="">
+
+				<!-- Step Indicators -->
+				<div class="cp-upload-steps-container" style="display:flex; justify-content:space-between; margin-bottom:30px;">
+					<div class="cp-upload-step is-active" data-step="1">1. Select File</div>
+					<div class="cp-upload-step" data-step="2">2. Details</div>
+					<div class="cp-upload-step" data-step="3">3. Options</div>
+					<div class="cp-upload-step" data-step="4">4. Interactivity</div>
+				</div>
+
+				<!-- Step 1 Panel: Select File -->
+				<div class="cp-upload-panel is-active" data-step-panel="1">
+					<div id="cp-upload-dropzone" class="cp-upload-dropzone" style="border:2px dashed var(--cp-line); border-radius:12px; padding:60px; text-align:center; cursor:pointer;">
+						<p>Drag and drop your video file here</p>
+						<p>or</p>
+						<button type="button" id="cp-select-file-btn" class="cp-button">Select File</button>
+						<input type="file" id="cp-upload-file-input" style="display:none;" accept="video/*">
+					</div>
+					<div id="cp-progress-container" style="display:none; margin-top:20px;">
+						<p id="cp-progress-filename" style="font-weight:bold;"></p>
+						<div style="background:var(--cp-soft); border-radius:999px; height:8px; width:100%; margin:10px 0; overflow:hidden;">
+							<div id="cp-progress-bar" style="background:var(--cp-accent); height:100%; width:0%;"></div>
+						</div>
+						<div style="display:flex; justify-content:space-between; font-size:0.85rem; color:var(--cp-muted);">
+							<span id="cp-progress-pct">0%</span>
+							<span id="cp-progress-speed">0 KB/s</span>
+							<span id="cp-progress-eta">ETA: --</span>
+						</div>
+					</div>
+				</div>
+
+				<!-- Step 2 Panel: Video Details -->
+				<div class="cp-upload-panel" data-step-panel="2">
+					<label><span>Video Title</span><input id="upload-title" name="channel_video_title" type="text" required></label>
+					<label><span>Description</span><textarea id="upload-description" name="channel_video_description" rows="4"></textarea></label>
+					<label><span>Video File URL</span><input id="upload-video-url" name="channel_video_url" type="url" readonly required></label>
+					<label><span>Poster Image URL</span><input id="upload-poster-url" name="poster_url" type="url"></label>
+					<button type="button" class="cp-button cp-button-secondary" id="cp-upload-thumbnail-btn">Upload Thumbnail Image</button>
+					
+					<?php 
+					$site_type = cp_theme_cp_setting( 'site_type', 'default' );
+					if ( in_array( $site_type, array( 'creator_platform', 'gaming', 'podcast' ), true ) ) :
+						$genres = get_terms( array( 'taxonomy' => 'cp_genre', 'hide_empty' => false ) );
+						if ( ! is_wp_error( $genres ) && ! empty( $genres ) ) :
+						?>
+						<label><span>Genre</span>
+							<select id="upload-genre" name="video_genre">
+								<option value=""><?php esc_html_e( 'Select Genre...', 'cp-theme' ); ?></option>
+								<?php foreach ( $genres as $genre ) : ?>
+									<option value="<?php echo $genre->term_id; ?>"><?php echo esc_html( $genre->name ); ?></option>
+								<?php endforeach; ?>
+							</select>
+						</label>
+						<?php 
+						endif;
+
+						if ( in_array( $site_type, array( 'creator_platform', 'podcast' ), true ) ) :
+							$topics = get_terms( array( 'taxonomy' => 'cp_topic', 'hide_empty' => false ) );
+							if ( ! is_wp_error( $topics ) && ! empty( $topics ) ) :
+							?>
+							<label><span>Topic</span>
+								<select id="upload-topic" name="video_topic">
+									<option value=""><?php esc_html_e( 'Select Topic...', 'cp-theme' ); ?></option>
+									<?php foreach ( $topics as $topic ) : ?>
+										<option value="<?php echo $topic->term_id; ?>"><?php echo esc_html( $topic->name ); ?></option>
+									<?php endforeach; ?>
+								</select>
+							</label>
+							<?php 
+							endif;
+						endif;
+
+						if ( 'gaming' === $site_type ) :
+							$games = get_terms( array( 'taxonomy' => 'cp_game', 'hide_empty' => false ) );
+							if ( ! is_wp_error( $games ) && ! empty( $games ) ) :
+							?>
+							<label><span>Game</span>
+								<select id="upload-game" name="video_game">
+									<option value=""><?php esc_html_e( 'Select Game...', 'cp-theme' ); ?></option>
+									<?php foreach ( $games as $game ) : ?>
+										<option value="<?php echo $game->term_id; ?>"><?php echo esc_html( $game->name ); ?></option>
+									<?php endforeach; ?>
+								</select>
+							</label>
+							<?php 
+							endif;
+						endif;
+
+						if ( in_array( $site_type, array( 'creator_platform', 'gaming' ), true ) ) :
+						?>
+						<label><span>Video Tags (comma separated)</span>
+							<input id="upload-tags" name="video_tags" type="text" placeholder="e.g. gameplay, tutorial, review">
+						</label>
+						<?php 
+						endif;
+					endif;
+					?>
+					
+					<div style="display:flex; justify-content:space-between; margin-top:20px;">
+						<button type="button" class="cp-button cp-button-secondary cp-prev-step">Back</button>
+						<button type="button" class="cp-button cp-next-step">Next</button>
+					</div>
+				</div>
+
+				<!-- Step 3 Panel: Video Options -->
+				<div class="cp-upload-panel" data-step-panel="3">
+					<label><span>Publishing Status</span>
+						<select id="upload-status" name="post_status">
+							<option value="publish">Publish Immediately</option>
+							<option value="draft">Save as Draft</option>
+						</select>
+					</label>
+					<label class="cp-filter-check"><input id="upload-allow-comments" name="allow_comments" type="checkbox" checked value="1"> <span>Allow Comments</span></label>
+					
+					<div style="display:flex; justify-content:space-between; margin-top:20px;">
+						<button type="button" class="cp-button cp-button-secondary cp-prev-step">Back</button>
+						<button type="button" class="cp-button cp-next-step">Next</button>
+					</div>
+				</div>
+
+				<!-- Step 4 Panel: Subtitles & Chapters -->
+				<div class="cp-upload-panel" data-step-panel="4">
+					<div style="margin-bottom:20px;">
+						<h3>Chapter Markers</h3>
+						<table id="upload-chapters-table" class="cp-suite-table">
+							<thead>
+								<tr><th>Time (seconds)</th><th>Chapter Title</th><th>Action</th></tr>
+							</thead>
+							<tbody></tbody>
+						</table>
+						<button type="button" class="cp-button cp-button-secondary" id="upload-add-chapter" style="margin-top:10px;">Add Chapter</button>
+					</div>
+
+					<div style="margin-bottom:20px;">
+						<h3>Subtitles</h3>
+						<table id="upload-subtitles-table" class="cp-suite-table">
+							<thead>
+								<tr><th>Lang Code</th><th>Label</th><th>VTT Source URL</th><th>Default</th><th>Action</th></tr>
+							</thead>
+							<tbody></tbody>
+						</table>
+						<button type="button" class="cp-button cp-button-secondary" id="upload-add-subtitle" style="margin-top:10px;">Add Subtitle</button>
+					</div>
+
+					<div style="display:flex; justify-content:space-between; margin-top:20px;">
+						<button type="button" class="cp-button cp-button-secondary cp-prev-step">Back</button>
+						<button type="submit" class="cp-button" id="cp-publish-btn">Publish Video</button>
+					</div>
+				</div>
+
+			</form>
+		</div>
+		<?php
+		return;
+	}
+	if ( 'pricing' === $slug ) {
+		$plans = cp_theme_get_pricing_plans();
+		?>
+		<div class="cp-pricing-grid">
+			<?php foreach ( $plans as $plan ) : ?>
+				<div class="cp-pricing-card <?php echo ! empty( $plan['recommended'] ) ? 'is-recommended' : ''; ?>">
+					<?php if ( ! empty( $plan['recommended'] ) ) : ?>
+						<span class="cp-pricing-badge"><?php esc_html_e( 'RECOMMENDED', 'cp-theme' ); ?></span>
+					<?php endif; ?>
+					<div class="cp-pricing-header">
+						<h2><?php echo esc_html( $plan['name'] ); ?></h2>
+						<p class="cp-pricing-desc"><?php echo esc_html( $plan['description'] ); ?></p>
+						<div class="cp-pricing-price"><?php echo esc_html( $plan['price'] ); ?></div>
+					</div>
+					<ul class="cp-pricing-features">
+						<?php foreach ( $plan['features'] as $feature ) : ?>
+							<li>
+								<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round">
+									<polyline points="20 6 9 17 4 12"></polyline>
+								</svg>
+								<span><?php echo esc_html( $feature ); ?></span>
+							</li>
+						<?php endforeach; ?>
+					</ul>
+					<div class="cp-pricing-action">
+						<a href="<?php echo esc_url( $plan['url'] ); ?>" class="cp-button <?php echo ! empty( $plan['recommended'] ) ? '' : 'cp-button-secondary'; ?>">
+							<?php echo esc_html( $plan['button_text'] ); ?>
+						</a>
+					</div>
+				</div>
+			<?php endforeach; ?>
+		</div>
+		<?php
+		return;
+	}
 	if ( in_array( $slug, array( 'topics', 'locations', 'product-categories', 'games' ), true ) ) { echo '<div class="cp-directory-grid">'; foreach ( $items as $term ) printf( '<a href="%s"><strong>%s</strong><span>%s items</span></a>', esc_url( get_term_link( $term ) ), esc_html( $term->name ), esc_html( $term->count ) ); echo '</div>'; return; }
 	if ( 'groups' === $slug ) { echo '<div class="cp-directory-grid">'; foreach ( $items as $group ) { $joined = is_user_logged_in() && CPWP_Community::is_member( $group->ID ); printf( '<article><h3><a href="%s">%s</a></h3><p>%s</p><button class="cp-button" data-cpwp-group-membership="%s">%s</button><span data-cpwp-group-count="%s">%s members</span></article>', esc_url( get_permalink( $group ) ), esc_html( get_the_title( $group ) ), esc_html( get_the_excerpt( $group ) ), esc_attr( $group->ID ), esc_html( $joined ? 'Leave group' : 'Join group' ), esc_attr( $group->ID ), esc_html( count( (array) get_post_meta( $group->ID, CPWP_Community::MEMBERS, true ) ) ) ); } echo '</div>'; return; }
 	if ( in_array( $slug, array( 'channels', 'following' ), true ) ) { echo '<div class="cp-channel-grid">'; foreach ( $items as $item ) printf( '<a href="%s"><img src="%s" alt=""><h3>%s</h3><p>%s</p></a>', esc_url( CPWP_Channels::public_url( $item['channel'] ) ), esc_url( $item['channel']['logo_url'] ?: get_avatar_url( $item['user']->ID ) ), esc_html( $item['channel']['name'] ), esc_html( $item['channel']['description'] ) ); echo '</div>'; return; }
@@ -456,3 +1110,90 @@ function cp_theme_get_template_page_url( $template_name ) {
 	}
 	return home_url( '/' );
 }
+
+function cp_theme_ensure_default_terms() {
+	$site_type = cp_theme_cp_setting( 'site_type', 'default' );
+	
+	// Ensure cp_genre terms
+	$genres = get_terms( array( 'taxonomy' => 'cp_genre', 'hide_empty' => false ) );
+	if ( empty( $genres ) || is_wp_error( $genres ) ) {
+		wp_insert_term( 'Entertainment', 'cp_genre' );
+		wp_insert_term( 'Music', 'cp_genre' );
+		wp_insert_term( 'Gaming', 'cp_genre' );
+		wp_insert_term( 'Education', 'cp_genre' );
+	}
+	
+	// Ensure cp_topic terms
+	if ( in_array( $site_type, array( 'creator_platform', 'podcast' ), true ) ) {
+		$topics = get_terms( array( 'taxonomy' => 'cp_topic', 'hide_empty' => false ) );
+		if ( empty( $topics ) || is_wp_error( $topics ) ) {
+			wp_insert_term( 'Tech & Gadgets', 'cp_topic' );
+			wp_insert_term( 'Daily Vlogs', 'cp_topic' );
+			wp_insert_term( 'Comedy & Memes', 'cp_topic' );
+			wp_insert_term( 'Interviews', 'cp_topic' );
+		}
+	}
+	
+	// Ensure cp_game terms
+	if ( 'gaming' === $site_type ) {
+		$games = get_terms( array( 'taxonomy' => 'cp_game', 'hide_empty' => false ) );
+		if ( empty( $games ) || is_wp_error( $games ) ) {
+			wp_insert_term( 'Valorant', 'cp_game' );
+			wp_insert_term( 'Minecraft', 'cp_game' );
+			wp_insert_term( 'Fortnite', 'cp_game' );
+			wp_insert_term( 'Apex Legends', 'cp_game' );
+		}
+	}
+}
+
+function cp_theme_footer_menu_fallback() {
+	$links = array();
+	
+	// Add Privacy Policy if configured in WP
+	$privacy_url = get_privacy_policy_url();
+	if ( $privacy_url ) {
+		$links[] = '<a href="' . esc_url( $privacy_url ) . '">' . esc_html__( 'Privacy Policy', 'cp-theme' ) . '</a>';
+	}
+	
+	// Add standard pages like About, Contact, Terms if they exist
+	$pages = get_pages( array(
+		'post_status' => 'publish',
+		'number'      => 10
+	) );
+	
+	$seen_urls = array();
+	if ( $privacy_url ) {
+		$seen_urls[] = $privacy_url;
+	}
+	
+	foreach ( $pages as $page ) {
+		$permalink = get_permalink( $page->ID );
+		if ( in_array( $permalink, $seen_urls, true ) ) {
+			continue;
+		}
+		
+		$title_lower = strtolower( $page->post_title );
+		// Filter for common footer links
+		if ( preg_match( '/(about|contact|terms|privacy|tos|support|faq|help|service)/', $title_lower ) ) {
+			$links[] = '<a href="' . esc_url( $permalink ) . '">' . esc_html( $page->post_title ) . '</a>';
+			$seen_urls[] = $permalink;
+		}
+	}
+	
+	// Fallback to top-level pages if still empty
+	if ( empty( $links ) ) {
+		foreach ( array_slice( $pages, 0, 3 ) as $page ) {
+			$permalink = get_permalink( $page->ID );
+			if ( ! in_array( $permalink, $seen_urls, true ) ) {
+				$links[] = '<a href="' . esc_url( $permalink ) . '">' . esc_html( $page->post_title ) . '</a>';
+			}
+		}
+	}
+	
+	if ( ! empty( $links ) ) {
+		echo '<nav class="cp-footer-nav">';
+		echo implode( '', $links );
+		echo '</nav>';
+	}
+}
+

@@ -104,6 +104,19 @@ final class CPWP_Settings {
 			'home_promo_content' => '',
 			'home_promo_button' => '',
 			'home_promo_url' => '',
+			'enable_subscriptions' => false,
+			'subscription_plugin' => 'pmpro',
+			'subscription_checkout_url' => '',
+			'enable_pricing_page' => false,
+			'pricing_free_price' => '$0',
+			'pricing_pro_price' => '$9.99 / month',
+			'pricing_premium_price' => '$19.99 / month',
+			'pricing_free_url' => '',
+			'pricing_pro_url' => '',
+			'pricing_premium_url' => '',
+			'pricing_free_features' => "Access to standard videos\nStandard definition streaming\nPublic community posts",
+			'pricing_pro_features' => "Access to all standard content\nAd-free playback\nHD streaming\nBasic community features",
+			'pricing_premium_features' => "Access to all courses & certificates\nLive stream chat\nExclusive community groups\nDirect downloads",
 		);
 	}
 
@@ -162,10 +175,10 @@ final class CPWP_Settings {
 	public static function sanitize( $input ) {
 		$defaults = self::defaults();
 		$clean = array();
-		foreach ( array( 'platform_name', 'tagline', 'footer_text', 'player_version', 'storage_bucket', 'storage_region', 'storage_access_key', 'home_section_order', 'home_trending_title', 'home_latest_title', 'home_most_viewed_title', 'home_category_ids', 'home_hero_title', 'home_hero_button', 'home_promo_title', 'home_promo_button', 'ad_publisher_id' ) as $key ) {
+		foreach ( array( 'platform_name', 'tagline', 'footer_text', 'player_version', 'storage_bucket', 'storage_region', 'storage_access_key', 'home_section_order', 'home_trending_title', 'home_latest_title', 'home_most_viewed_title', 'home_category_ids', 'home_hero_title', 'home_hero_button', 'home_promo_title', 'home_promo_button', 'ad_publisher_id', 'subscription_plugin', 'pricing_free_price', 'pricing_pro_price', 'pricing_premium_price' ) as $key ) {
 			$clean[ $key ] = sanitize_text_field( $input[ $key ] ?? '' );
 		}
-		foreach ( array( 'logo_url', 'custom_cdn', 'facebook_url', 'x_url', 'storage_endpoint', 'storage_public_url', 'home_promo_url' ) as $key ) {
+		foreach ( array( 'logo_url', 'custom_cdn', 'facebook_url', 'x_url', 'storage_endpoint', 'storage_public_url', 'home_promo_url', 'subscription_checkout_url', 'pricing_free_url', 'pricing_pro_url', 'pricing_premium_url' ) as $key ) {
 			$clean[ $key ] = esc_url_raw( $input[ $key ] ?? '' );
 		}
 		$clean['accent_color'] = sanitize_hex_color( $input['accent_color'] ?? '' ) ?: $defaults['accent_color'];
@@ -189,7 +202,10 @@ final class CPWP_Settings {
 		$clean['home_videos_per_section'] = min( 24, max( 1, absint( $input['home_videos_per_section'] ?? 8 ) ) );
 		$clean['home_hero_description'] = sanitize_textarea_field( $input['home_hero_description'] ?? '' );
 		$clean['home_promo_content'] = sanitize_textarea_field( $input['home_promo_content'] ?? '' );
-		foreach ( array( 'default_muted', 'show_sharing', 'show_transcript', 'show_related', 'enable_comments', 'enable_analytics', 'enable_login', 'enable_registration', 'comments_login_only', 'enable_password_recovery', 'enable_email_verification', 'enable_password_confirmation', 'enable_login_rate_limit', 'enable_auth_captcha', 'enable_account_deletion', 'enable_creator_channels', 'enable_reactions', 'enable_favorites_watch_later', 'enable_playlists', 'enable_continue_watching', 'enable_comment_reactions', 'enable_monetization', 'enable_creator_monetization', 'home_show_categories', 'home_show_trending', 'home_show_latest', 'home_show_most_viewed', 'home_show_category_rows', 'home_show_promo' ) as $key ) {
+		foreach ( array( 'pricing_free_features', 'pricing_pro_features', 'pricing_premium_features' ) as $key ) {
+			$clean[ $key ] = sanitize_textarea_field( $input[ $key ] ?? '' );
+		}
+		foreach ( array( 'default_muted', 'show_sharing', 'show_transcript', 'show_related', 'enable_comments', 'enable_analytics', 'enable_login', 'enable_registration', 'comments_login_only', 'enable_password_recovery', 'enable_email_verification', 'enable_password_confirmation', 'enable_login_rate_limit', 'enable_auth_captcha', 'enable_account_deletion', 'enable_creator_channels', 'enable_reactions', 'enable_favorites_watch_later', 'enable_playlists', 'enable_continue_watching', 'enable_comment_reactions', 'enable_monetization', 'enable_creator_monetization', 'home_show_categories', 'home_show_trending', 'home_show_latest', 'home_show_most_viewed', 'home_show_category_rows', 'home_show_promo', 'enable_subscriptions', 'enable_pricing_page' ) as $key ) {
 			$clean[ $key ] = ! empty( $input[ $key ] );
 		}
 		if ( ! empty( $input['apply_site_type_preset'] ) ) $clean = array_merge( $clean, self::site_type_presets()[ $clean['site_type'] ] );
@@ -202,7 +218,7 @@ final class CPWP_Settings {
 		<div class="wrap cpwp-settings"><h1><?php esc_html_e( 'CP Platform Settings', 'cp-wp-plugin' ); ?></h1><form method="post" action="options.php">
 			<?php settings_fields( 'cpwp_settings_group' ); ?>
 			<nav class="cpwp-tabs" role="tablist">
-				<?php foreach ( array( 'site-type' => 'Site Type', 'branding' => 'Branding', 'player' => 'Player', 'features' => 'Video Features', 'users' => 'Users', 'monetization' => 'Monetization', 'storage' => 'Storage', 'homepage' => 'Homepage', 'social' => 'Social', 'tools' => 'Tools' ) as $id => $label ) : ?>
+				<?php foreach ( array( 'site-type' => 'Site Type', 'branding' => 'Branding', 'player' => 'Player', 'features' => 'Video Features', 'users' => 'Users', 'payment' => 'Subscriptions', 'monetization' => 'Monetization', 'storage' => 'Storage', 'homepage' => 'Homepage', 'social' => 'Social', 'tools' => 'Tools' ) as $id => $label ) : ?>
 					<button type="button" role="tab" class="cpwp-tab <?php echo 'branding' === $id ? 'is-active' : ''; ?>" data-tab="<?php echo esc_attr( $id ); ?>"><?php echo esc_html( $label ); ?></button>
 				<?php endforeach; ?>
 			</nav>
@@ -211,6 +227,38 @@ final class CPWP_Settings {
 			<div class="cpwp-tab-panel" data-panel="player"><?php self::section( __( 'Player defaults and CDN', 'cp-wp-plugin' ), array( 'player_version' => 'ChatyPlayer version', 'custom_cdn' => 'Custom CDN base URL', 'default_preload' => 'Default preload', 'default_muted' => 'Muted by default' ), $options ); ?></div>
 			<div class="cpwp-tab-panel" data-panel="features"><?php self::section( __( 'Video page features', 'cp-wp-plugin' ), array( 'show_sharing' => 'Show sharing', 'show_transcript' => 'Show transcript', 'show_related' => 'Show related videos', 'enable_comments' => 'Enable comments', 'enable_comment_reactions' => 'Enable database-backed comment likes and dislikes', 'enable_analytics' => 'Enable analytics', 'enable_reactions' => 'Enable real video likes and dislikes', 'enable_favorites_watch_later' => 'Enable Favorites and Watch Later', 'enable_playlists' => 'Enable user playlists', 'enable_continue_watching' => 'Enable continue-watching progress' ), $options ); ?></div>
 			<div class="cpwp-tab-panel" data-panel="users"><?php self::section( __( 'User access and security', 'cp-wp-plugin' ), array( 'enable_login' => 'Enable login page', 'enable_registration' => 'Enable registration page', 'enable_creator_channels' => 'Allow users to create creator channels with their own storage bucket', 'comments_login_only' => 'Only logged-in users can comment', 'enable_password_recovery' => 'Enable password recovery and reset emails', 'enable_email_verification' => 'Require email verification after registration', 'enable_password_confirmation' => 'Require current password before changing password', 'enable_login_rate_limit' => 'Enable login rate limiting', 'enable_auth_captcha' => 'Enable CAPTCHA on login, registration, and recovery', 'enable_account_deletion' => 'Allow users to delete their account' ), $options ); ?></div>
+			<div class="cpwp-tab-panel" data-panel="payment">
+				<?php self::section( __( 'Subscription and Payment Integration', 'cp-wp-plugin' ), array(
+					'enable_subscriptions' => 'Enable subscription payment gating',
+					'subscription_plugin'  => 'Integration mode / Plugin choice',
+					'subscription_checkout_url' => 'Upgrade/Pricing Page URL (Custom Override)',
+				), $options ); ?>
+
+				<?php self::section( __( 'Custom Pricing & Plans Page', 'cp-wp-plugin' ), array(
+					'enable_pricing_page' => 'Enable custom Pricing & Plans page (/discover/pricing/)',
+					'pricing_free_price' => 'Free plan price tag',
+					'pricing_free_url' => 'Free plan checkout URL',
+					'pricing_free_features' => 'Free plan features (one per line)',
+					'pricing_pro_price' => 'Pro plan price tag',
+					'pricing_pro_url' => 'Pro plan checkout URL',
+					'pricing_pro_features' => 'Pro plan features (one per line)',
+					'pricing_premium_price' => 'Premium plan price tag',
+					'pricing_premium_url' => 'Premium plan checkout URL',
+					'pricing_premium_features' => 'Premium plan features (one per line)',
+				), $options ); ?>
+				<p class="description">
+					<?php esc_html_e( 'To restrict content (videos/courses) to paid subscribers, enable this option and choose your integration mode. Note that you must install the selected plugin separately on your WordPress site.', 'cp-wp-plugin' ); ?>
+				</p>
+				<div class="cpwp-settings-section" style="border:1px solid rgba(255,255,255,0.08); padding:15px; border-radius:8px; background:rgba(255,255,255,0.02); margin-top:15px; max-width:600px;">
+					<h3 style="margin-top:0;"><?php esc_html_e( 'Required Plugins Guide', 'cp-wp-plugin' ); ?></h3>
+					<ul style="margin:0; padding-left:20px; line-height:1.5;">
+						<li><strong><?php esc_html_e( 'Paid Memberships Pro:', 'cp-wp-plugin' ); ?></strong> <?php esc_html_e( 'Free plugin for Stripe/PayPal subscription levels. Blocks access to videos or courses for non-members.', 'cp-wp-plugin' ); ?></li>
+						<li><strong><?php esc_html_e( 'WooCommerce Memberships:', 'cp-wp-plugin' ); ?></strong> <?php esc_html_e( 'Restrict access by linking videos or courses to WooCommerce membership plans.', 'cp-wp-plugin' ); ?></li>
+						<li><strong><?php esc_html_e( 'MemberPress:', 'cp-wp-plugin' ); ?></strong> <?php esc_html_e( 'Automatic rules to restrict video custom post types or courses to paying subscribers.', 'cp-wp-plugin' ); ?></li>
+						<li><strong><?php esc_html_e( 'Native WP Role Gating:', 'cp-wp-plugin' ); ?></strong> <?php esc_html_e( 'Standard gating via WordPress User Roles (useful with custom membership/role plugins).', 'cp-wp-plugin' ); ?></li>
+					</ul>
+				</div>
+			</div>
 			<div class="cpwp-tab-panel" data-panel="monetization"><?php self::section( __( 'Monetization connections and ad placements', 'cp-wp-plugin' ), array( 'enable_monetization' => 'Enable monetization', 'enable_creator_monetization' => 'Allow approved creators to monetize below-player and description placements', 'ad_provider' => 'Ad provider/code type', 'ad_publisher_id' => 'Publisher/account ID', 'ad_home_hero' => 'Homepage hero ad code', 'ad_home_grid' => 'Homepage grid ad code', 'ad_home_sidebar' => 'Homepage sidebar ad code', 'ad_video_above' => 'Above player ad code', 'ad_video_below' => 'Below player ad code', 'ad_video_description' => 'Description ad code', 'ad_player_overlay' => 'Player overlay ad code', 'ad_preroll_url' => 'Pre-roll video URL', 'ad_postroll_url' => 'Post-roll video URL' ), $options ); ?><p class="description"><?php esc_html_e( 'Ad code can include AdSense, Ad Manager, affiliate banners, custom HTML, or custom JavaScript. Only trusted administrators should edit these fields.', 'cp-wp-plugin' ); ?></p></div>
 			<div class="cpwp-tab-panel" data-panel="storage">
 				<?php self::section( __( 'Storage connection', 'cp-wp-plugin' ), array( 'storage_provider' => 'Provider', 'storage_endpoint' => 'Endpoint URL', 'storage_bucket' => 'Bucket name', 'storage_region' => 'Region', 'storage_public_url' => 'Public/base URL', 'storage_access_key' => 'Access key', 'storage_secret_key' => 'Secret key' ), $options ); ?>
@@ -230,7 +278,7 @@ final class CPWP_Settings {
 		echo '<div class="cpwp-settings-section"><h2>' . esc_html( $title ) . '</h2>';
 		foreach ( $fields as $key => $label ) {
 			echo '<label><span>' . esc_html( $label ) . '</span>';
-			if ( in_array( $key, array( 'default_muted', 'show_sharing', 'show_transcript', 'show_related', 'enable_comments', 'enable_analytics', 'enable_login', 'enable_registration', 'comments_login_only', 'enable_password_recovery', 'enable_email_verification', 'enable_password_confirmation', 'enable_login_rate_limit', 'enable_auth_captcha', 'enable_account_deletion', 'enable_creator_channels', 'enable_reactions', 'enable_favorites_watch_later', 'enable_playlists', 'enable_continue_watching', 'enable_comment_reactions', 'enable_monetization', 'enable_creator_monetization', 'home_show_categories', 'home_show_trending', 'home_show_latest', 'home_show_most_viewed', 'home_show_category_rows', 'home_show_promo' ), true ) ) {
+			if ( in_array( $key, array( 'default_muted', 'show_sharing', 'show_transcript', 'show_related', 'enable_comments', 'enable_analytics', 'enable_login', 'enable_registration', 'comments_login_only', 'enable_password_recovery', 'enable_email_verification', 'enable_password_confirmation', 'enable_login_rate_limit', 'enable_auth_captcha', 'enable_account_deletion', 'enable_creator_channels', 'enable_reactions', 'enable_favorites_watch_later', 'enable_playlists', 'enable_continue_watching', 'enable_comment_reactions', 'enable_monetization', 'enable_creator_monetization', 'home_show_categories', 'home_show_trending', 'home_show_latest', 'home_show_most_viewed', 'home_show_category_rows', 'home_show_promo', 'enable_subscriptions' ), true ) ) {
 				printf( '<input type="checkbox" name="cpwp_settings[%s]" value="1" %s>', esc_attr( $key ), checked( ! empty( $options[ $key ] ), true, false ) );
 			} elseif ( 'accent_color' === $key ) {
 				printf( '<input type="color" name="cpwp_settings[%s]" value="%s">', esc_attr( $key ), esc_attr( $options[ $key ] ) );
@@ -245,6 +293,10 @@ final class CPWP_Settings {
 			} elseif ( 'ad_provider' === $key ) {
 				echo '<select name="cpwp_settings[ad_provider]">';
 				foreach ( array( 'adsense' => 'Google AdSense', 'ad_manager' => 'Google Ad Manager', 'affiliate' => 'Affiliate banners', 'custom_html' => 'Custom HTML', 'custom_javascript' => 'Custom JavaScript' ) as $value => $name ) printf( '<option value="%s" %s>%s</option>', esc_attr( $value ), selected( $options[ $key ], $value, false ), esc_html( $name ) );
+				echo '</select>';
+			} elseif ( 'subscription_plugin' === $key ) {
+				echo '<select name="cpwp_settings[subscription_plugin]">';
+				foreach ( array( 'pmpro' => 'Paid Memberships Pro', 'woocommerce' => 'WooCommerce Memberships', 'memberpress' => 'MemberPress', 'roles' => 'Native WP Role Gating' ) as $value => $name ) printf( '<option value="%s" %s>%s</option>', esc_attr( $value ), selected( $options[ $key ], $value, false ), esc_html( $name ) );
 				echo '</select>';
 			} elseif ( 'storage_secret_key' === $key ) {
 				printf( '<input type="password" name="cpwp_settings[%s]" value="" placeholder="%s" autocomplete="new-password">', esc_attr( $key ), esc_attr( $options[ $key ] ? __( 'Secret saved; leave blank to keep it', 'cp-wp-plugin' ) : '' ) );
@@ -262,7 +314,7 @@ final class CPWP_Settings {
 				$selected = array_map( 'absint', explode( ',', $options[ $key ] ) );
 				foreach ( get_categories( array( 'hide_empty' => false ) ) as $category ) printf( '<option value="%d" %s>%s</option>', $category->term_id, selected( in_array( $category->term_id, $selected, true ), true, false ), esc_html( $category->name ) );
 				echo '</select>';
-			} elseif ( in_array( $key, array_merge( array( 'home_hero_description', 'home_promo_content' ), array_map( function ( $slot ) { return 'ad_' . $slot; }, array_keys( CPWP_Monetization::slots() ) ) ), true ) ) {
+			} elseif ( in_array( $key, array_merge( array( 'home_hero_description', 'home_promo_content', 'pricing_free_features', 'pricing_pro_features', 'pricing_premium_features' ), array_map( function ( $slot ) { return 'ad_' . $slot; }, array_keys( CPWP_Monetization::slots() ) ) ), true ) ) {
 				printf( '<textarea name="cpwp_settings[%s]" rows="4">%s</textarea>', esc_attr( $key ), esc_textarea( $options[ $key ] ) );
 			} else {
 				printf( '<input type="text" name="cpwp_settings[%s]" value="%s">', esc_attr( $key ), esc_attr( $options[ $key ] ) );

@@ -11,6 +11,7 @@ final class CPWP_Community {
 	const POLL_VOTES = '_cpwp_community_poll_votes';
 
 	public static function register_routes() {
+		if ( ! in_array( CPWP_Settings::get( 'site_type' ), array( 'creator_platform', 'membership', 'gaming', 'business_training', 'video_library' ), true ) ) return;
 		register_rest_route( 'cpwp/v1', '/groups/(?P<group_id>\d+)/membership', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'membership_route' ), 'permission_callback' => 'is_user_logged_in' ) );
 		register_rest_route( 'cpwp/v1', '/community/(?P<post_id>\d+)/vote', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'vote' ), 'permission_callback' => 'is_user_logged_in' ) );
 	}
@@ -20,6 +21,7 @@ final class CPWP_Community {
 	}
 
 	public static function add_meta_boxes() {
+		if ( ! in_array( CPWP_Settings::get( 'site_type' ), array( 'creator_platform', 'membership', 'gaming', 'business_training', 'video_library' ), true ) ) return;
 		add_meta_box( 'cpwp-community-group', __( 'Community Group Access', 'cp-wp-plugin' ), array( __CLASS__, 'render_post_group' ), 'cp_community', 'side', 'default' );
 		add_meta_box( 'cpwp-group-moderators', __( 'Group Moderators', 'cp-wp-plugin' ), array( __CLASS__, 'render_moderators' ), 'cp_group', 'normal', 'default' );
 	}
@@ -34,6 +36,7 @@ final class CPWP_Community {
 	}
 
 	public static function save( $post_id ) {
+		if ( ! in_array( CPWP_Settings::get( 'site_type' ), array( 'creator_platform', 'membership', 'gaming', 'business_training', 'video_library' ), true ) ) return;
 		if ( ! isset( $_POST['cpwp_community_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['cpwp_community_nonce'] ) ), 'cpwp_community_fields' ) || ! current_user_can( 'edit_post', $post_id ) ) return;
 		if ( 'cp_community' === get_post_type( $post_id ) ) { $group = absint( $_POST[ self::GROUP ] ?? 0 ); $group ? update_post_meta( $post_id, self::GROUP, $group ) : delete_post_meta( $post_id, self::GROUP ); }
 		if ( 'cp_group' === get_post_type( $post_id ) ) update_post_meta( $post_id, self::MODERATORS, self::ids( explode( ',', sanitize_text_field( wp_unslash( $_POST['cpwp_group_moderators'] ?? '' ) ) ) ) );

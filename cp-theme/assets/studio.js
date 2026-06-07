@@ -136,6 +136,19 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("edit-video-preload").value = editBtn.dataset.preload || "metadata";
       document.getElementById("edit-video-accent").value = editBtn.dataset.accent || "#6d5dfc";
 
+      const genreSelect = document.getElementById("edit-video-genre");
+      if (genreSelect) genreSelect.value = editBtn.dataset.genre || "";
+
+      const topicSelect = document.getElementById("edit-video-topic");
+      if (topicSelect) topicSelect.value = editBtn.dataset.topic || "";
+
+      const gameSelect = document.getElementById("edit-video-game");
+      if (gameSelect) gameSelect.value = editBtn.dataset.game || "";
+
+      const tagsInput = document.getElementById("edit-video-tags");
+      if (tagsInput) tagsInput.value = editBtn.dataset.tags || "";
+
+
       // Populate Chapters
       try {
         const chapters = JSON.parse(editBtn.dataset.chapters || "[]");
@@ -202,6 +215,19 @@ document.addEventListener("DOMContentLoaded", () => {
         chapters: JSON.stringify(chapters),
         subtitles: JSON.stringify(subtitles)
       };
+
+      const genreSelectSave = document.getElementById("edit-video-genre");
+      if (genreSelectSave) payload.video_genre = genreSelectSave.value;
+
+      const topicSelectSave = document.getElementById("edit-video-topic");
+      if (topicSelectSave) payload.video_topic = topicSelectSave.value;
+
+      const gameSelectSave = document.getElementById("edit-video-game");
+      if (gameSelectSave) payload.video_game = gameSelectSave.value;
+
+      const tagsInputSave = document.getElementById("edit-video-tags");
+      if (tagsInputSave) payload.video_tags = tagsInputSave.value;
+
 
       try {
         const response = await fetch(`${cpwpStudio.restUrl}/creator/video/${videoId}`, {

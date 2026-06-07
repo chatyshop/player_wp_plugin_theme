@@ -68,6 +68,26 @@ get_header();
 						<span class="cp-podcast-meta-dot">·</span>
 						<span><?php echo esc_html( $duration ); ?></span>
 					</div>
+					
+					<?php 
+					$genres = get_the_terms( $post_id, 'cp_genre' ) ?: array();
+					$topics = get_the_terms( $post_id, 'cp_topic' ) ?: array();
+					if ( ! empty( $genres ) && ! is_wp_error( $genres ) || ! empty( $topics ) && ! is_wp_error( $topics ) ) :
+					?>
+					<div class="cp-podcast-taxonomies" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; margin-bottom:14px;">
+						<?php if ( ! empty( $genres ) && ! is_wp_error( $genres ) ) : foreach ( $genres as $genre ) : ?>
+							<a href="<?php echo esc_url( get_term_link( $genre ) ); ?>" class="cp-podcast-genre-pill" style="background: var(--cp-soft); color: var(--cp-accent); border: 1px solid var(--cp-line); padding: 4px 12px; border-radius: 999px; text-decoration: none; font-size: 0.8rem; font-weight: 600;">
+								<?php echo esc_html( $genre->name ); ?>
+							</a>
+						<?php endforeach; endif; ?>
+						<?php if ( ! empty( $topics ) && ! is_wp_error( $topics ) ) : foreach ( $topics as $topic ) : ?>
+							<a href="<?php echo esc_url( get_term_link( $topic ) ); ?>" class="cp-podcast-topic-pill" style="background: var(--cp-soft); color: var(--cp-accent); border: 1px solid var(--cp-line); padding: 4px 12px; border-radius: 999px; text-decoration: none; font-size: 0.8rem; font-weight: 600;">
+								<?php echo esc_html( $topic->name ); ?>
+							</a>
+						<?php endforeach; endif; ?>
+					</div>
+					<?php endif; ?>
+
 					<div class="cp-podcast-desc-text">
 						<?php cp_theme_video_details( $post_id ); ?>
 					</div>

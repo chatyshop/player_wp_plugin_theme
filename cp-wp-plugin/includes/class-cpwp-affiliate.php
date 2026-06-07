@@ -12,6 +12,7 @@ final class CPWP_Affiliate {
 	const LINK_STATUS = '_cpwp_affiliate_link_status';
 
 	public static function register_routes() {
+		if ( 'affiliate' !== CPWP_Settings::get( 'site_type' ) ) return;
 		add_rewrite_rule( '^affiliate/go/([0-9]+)/?$', 'index.php?cpwp_affiliate_go=$matches[1]', 'top' );
 		add_rewrite_tag( '%cpwp_affiliate_go%', '([0-9]+)' );
 	}
@@ -27,6 +28,7 @@ final class CPWP_Affiliate {
 	}
 
 	public static function save( $post_id ) {
+		if ( 'affiliate' !== CPWP_Settings::get( 'site_type' ) ) return;
 		if ( 'cp_product' !== get_post_type( $post_id ) || ! isset( $_POST['cpwp_affiliate_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['cpwp_affiliate_nonce'] ) ), 'cpwp_affiliate_product' ) || ! current_user_can( 'edit_post', $post_id ) ) return;
 		foreach ( array( self::PRICE, self::MERCHANT, self::COUPON, self::EXPIRY ) as $key ) { $value = sanitize_text_field( wp_unslash( $_POST[ $key ] ?? '' ) ); $value ? update_post_meta( $post_id, $key, $value ) : delete_post_meta( $post_id, $key ); }
 		! empty( $_POST[ self::COMPARE ] ) ? update_post_meta( $post_id, self::COMPARE, '1' ) : delete_post_meta( $post_id, self::COMPARE );
@@ -35,6 +37,7 @@ final class CPWP_Affiliate {
 	public static function url( $product_id ) { return home_url( '/affiliate/go/' . absint( $product_id ) . '/' ); }
 
 	public static function redirect() {
+		if ( 'affiliate' !== CPWP_Settings::get( 'site_type' ) ) return;
 		$product_id = absint( get_query_var( 'cpwp_affiliate_go' ) ); if ( ! $product_id ) return;
 		$url = get_post_meta( $product_id, '_cpwp_external_url', true ); if ( 'cp_product' !== get_post_type( $product_id ) || ! $url ) wp_die( esc_html__( 'Affiliate link unavailable.', 'cp-wp-plugin' ), '', array( 'response' => 404 ) );
 		update_post_meta( $product_id, self::CLICKS, absint( get_post_meta( $product_id, self::CLICKS, true ) ) + 1 );

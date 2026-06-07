@@ -122,14 +122,24 @@ get_header();
 					$enrolled = $is_logged_in && class_exists( 'CPWP_Learning' ) && in_array( $cid, CPWP_Learning::enrolled_courses( $user_id ), true );
 					$progress = ( $enrolled && class_exists( 'CPWP_Learning' ) ) ? CPWP_Learning::course_progress( $user_id, $cid ) : 0;
 					$author   = get_the_author_meta( 'display_name', $course->post_author );
+					$can_access = true;
+					if ( class_exists( 'CPWP_Site_Modules' ) ) {
+						$can_access = CPWP_Site_Modules::can_access_video( $cid );
+					}
 				?>
 				<article class="cp-udemy-course-card">
 					<a href="<?php echo esc_url( get_permalink( $cid ) ); ?>" class="cp-udemy-card-thumb-link" tabindex="-1" aria-hidden="true">
-						<div class="cp-udemy-card-thumb">
+						<div class="cp-udemy-card-thumb" style="position: relative;">
 							<?php if ( $thumb ) : ?>
 							<img src="<?php echo esc_url( $thumb ); ?>" alt="" loading="lazy">
 							<?php else : ?>
 							<div class="cp-udemy-thumb-placeholder">📚</div>
+							<?php endif; ?>
+							<?php if ( ! $can_access ) : ?>
+								<span class="cp-card-lock-badge" style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.78); color: #fff; padding: 4px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; display: flex; align-items: center; gap: 4px; border: 1px solid rgba(255,255,255,0.15); line-height: 1; z-index: 2;">
+									<svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" style="margin-top:-1px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+									<?php esc_html_e( 'LOCKED', 'cp-theme' ); ?>
+								</span>
 							<?php endif; ?>
 						</div>
 					</a>

@@ -11,18 +11,21 @@ final class CPWP_Learning {
 	const LESSON_COMPLETIONS = '_cpwp_lesson_completions';
 
 	public static function register_routes() {
+		if ( ! in_array( CPWP_Settings::get( 'site_type' ), array( 'courses', 'business_training' ), true ) ) return;
 		register_rest_route( 'cpwp/v1', '/learning/enroll/(?P<course_id>\d+)', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'enroll_route' ), 'permission_callback' => 'is_user_logged_in' ) );
 		register_rest_route( 'cpwp/v1', '/learning/quiz/(?P<quiz_id>\d+)', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'quiz_route' ), 'permission_callback' => 'is_user_logged_in' ) );
 		register_rest_route( 'cpwp/v1', '/learning/lesson/(?P<lesson_id>\d+)', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'lesson_route' ), 'permission_callback' => 'is_user_logged_in' ) );
 	}
 
 	public static function add_meta_boxes() {
+		if ( ! in_array( CPWP_Settings::get( 'site_type' ), array( 'courses', 'business_training' ), true ) ) return;
 		add_meta_box( 'cpwp-quiz-builder', __( 'Quiz Questions', 'cp-wp-plugin' ), array( __CLASS__, 'render_quiz_builder' ), 'cp_quiz', 'normal', 'high' );
 		add_meta_box( 'cpwp-course-assignments', __( 'Course Assignments', 'cp-wp-plugin' ), array( __CLASS__, 'render_assignments' ), 'cp_course', 'normal', 'default' );
 		add_meta_box( 'cpwp-group-members', __( 'Group Members', 'cp-wp-plugin' ), array( __CLASS__, 'render_group_members' ), 'cp_group', 'normal', 'default' );
 	}
 
 	public static function save( $post_id ) {
+		if ( ! in_array( CPWP_Settings::get( 'site_type' ), array( 'courses', 'business_training' ), true ) ) return;
 		if ( ! isset( $_POST['cpwp_learning_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['cpwp_learning_nonce'] ) ), 'cpwp_learning' ) || ! current_user_can( 'edit_post', $post_id ) ) return;
 		if ( 'cp_quiz' === get_post_type( $post_id ) ) {
 			$questions = array();
