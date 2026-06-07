@@ -13,6 +13,161 @@ function cp_theme_setup() {
 }
 add_action( 'after_setup_theme', 'cp_theme_setup' );
 
+/**
+ * Route single cp_series pages to a site-type-specific template.
+ */
+function cp_theme_series_template( $template ) {
+	if ( is_singular( 'cp_series' ) ) {
+		$site_type = cp_theme_cp_setting( 'site_type', 'creator_platform' );
+		$custom    = locate_template( 'templates/' . $site_type . '/single-series.php' );
+		if ( $custom ) return $custom;
+		$default = locate_template( 'templates/default/single-series.php' );
+		if ( $default ) return $default;
+	}
+	return $template;
+}
+add_filter( 'single_template', 'cp_theme_series_template' );
+
+/**
+ * Route the channel page to a site-type-specific template.
+ */
+function cp_theme_channel_template( $template ) {
+	if ( get_query_var( 'cpwp_public_channel' ) ) {
+		$site_type = cp_theme_cp_setting( 'site_type', 'creator_platform' );
+		$custom    = locate_template( 'templates/' . $site_type . '/channel.php' );
+		if ( $custom ) return $custom;
+		$default = locate_template( 'templates/default/channel.php' );
+		if ( $default ) return $default;
+	}
+	return $template;
+}
+add_filter( 'template_include', 'cp_theme_channel_template', 99 );
+
+/**
+ * Route single cp_course pages to a site-type-specific template.
+ */
+function cp_theme_course_template( $template ) {
+	if ( is_singular( 'cp_course' ) ) {
+		$site_type = cp_theme_cp_setting( 'site_type', 'creator_platform' );
+		$custom    = locate_template( 'templates/' . $site_type . '/single-course.php' );
+		if ( $custom ) return $custom;
+		$default = locate_template( 'templates/default/single-course.php' );
+		if ( $default ) return $default;
+	}
+	return $template;
+}
+add_filter( 'single_template', 'cp_theme_course_template' );
+
+/**
+ * Route single cp_lesson pages to a site-type-specific template.
+ */
+function cp_theme_lesson_template( $template ) {
+	if ( is_singular( 'cp_lesson' ) ) {
+		$site_type = cp_theme_cp_setting( 'site_type', 'creator_platform' );
+		$custom    = locate_template( 'templates/' . $site_type . '/single-lesson.php' );
+		if ( $custom ) return $custom;
+		$default = locate_template( 'templates/default/single-lesson.php' );
+		if ( $default ) return $default;
+	}
+	return $template;
+}
+add_filter( 'single_template', 'cp_theme_lesson_template' );
+
+/**
+ * Route single cp_event pages to a site-type-specific template.
+ */
+function cp_theme_event_template( $template ) {
+	if ( is_singular( 'cp_event' ) ) {
+		$site_type = cp_theme_cp_setting( 'site_type', 'creator_platform' );
+		$custom    = locate_template( 'templates/' . $site_type . '/single-event.php' );
+		if ( $custom ) return $custom;
+		$default = locate_template( 'templates/default/single-event.php' );
+		if ( $default ) return $default;
+	}
+	return $template;
+}
+add_filter( 'single_template', 'cp_theme_event_template' );
+
+/**
+ * Route single cp_group pages to a site-type-specific template.
+ */
+function cp_theme_group_template( $template ) {
+	if ( is_singular( 'cp_group' ) ) {
+		$site_type = cp_theme_cp_setting( 'site_type', 'creator_platform' );
+		$custom    = locate_template( 'templates/' . $site_type . '/single-group.php' );
+		if ( $custom ) return $custom;
+		$default = locate_template( 'templates/default/single-group.php' );
+		if ( $default ) return $default;
+	}
+	return $template;
+}
+add_filter( 'single_template', 'cp_theme_group_template' );
+
+/**
+ * Route single cp_collection pages to a site-type-specific template.
+ */
+function cp_theme_collection_template( $template ) {
+	if ( is_singular( 'cp_collection' ) ) {
+		$site_type = cp_theme_cp_setting( 'site_type', 'creator_platform' );
+		$custom    = locate_template( 'templates/' . $site_type . '/single-collection.php' );
+		if ( $custom ) return $custom;
+		$default = locate_template( 'templates/default/single-collection.php' );
+		if ( $default ) return $default;
+	}
+	return $template;
+}
+add_filter( 'single_template', 'cp_theme_collection_template' );
+
+/**
+ * Route single cp_news pages to a site-type-specific template.
+ */
+function cp_theme_news_template( $template ) {
+	if ( is_singular( 'cp_news' ) ) {
+		$site_type = cp_theme_cp_setting( 'site_type', 'creator_platform' );
+		$custom    = locate_template( 'templates/' . $site_type . '/single-news.php' );
+		if ( $custom ) return $custom;
+		$default = locate_template( 'templates/default/single-news.php' );
+		if ( $default ) return $default;
+	}
+	return $template;
+}
+add_filter( 'single_template', 'cp_theme_news_template' );
+
+/**
+ * Route single cp_person pages to a site-type-specific template.
+ */
+function cp_theme_person_template( $template ) {
+	if ( is_singular( 'cp_person' ) ) {
+		$site_type = cp_theme_cp_setting( 'site_type', 'creator_platform' );
+		$custom    = locate_template( 'templates/' . $site_type . '/single-person.php' );
+		if ( $custom ) return $custom;
+		$default = locate_template( 'templates/default/single-person.php' );
+		if ( $default ) return $default;
+	}
+	return $template;
+}
+add_filter( 'single_template', 'cp_theme_person_template' );
+
+/**
+ * Route single cp_product pages to a site-type-specific template.
+ */
+function cp_theme_product_template( $template ) {
+	if ( is_singular( 'cp_product' ) ) {
+		$site_type = cp_theme_cp_setting( 'site_type', 'creator_platform' );
+		$custom    = locate_template( 'templates/' . $site_type . '/single-product.php' );
+		if ( $custom ) return $custom;
+		$default = locate_template( 'templates/default/single-product.php' );
+		if ( $default ) return $default;
+	}
+	return $template;
+}
+add_filter( 'single_template', 'cp_theme_product_template' );
+
+
+
+
+
+
 function cp_theme_assets() {
 	wp_enqueue_style(
 		'cp-inter-font',
