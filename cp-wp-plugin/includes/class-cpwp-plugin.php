@@ -4,9 +4,18 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Main plugin class that bootstraps the ChatyPlayer WordPress integration.
+ * Handles the registration of all actions, filters, dependencies, and core features.
+ */
 final class CPWP_Plugin {
 	private static $instance;
 
+	/**
+	 * Retrieves the singleton instance of the plugin.
+	 *
+	 * @return CPWP_Plugin
+	 */
 	public static function instance() {
 		if ( null === self::$instance ) {
 			self::$instance = new self();

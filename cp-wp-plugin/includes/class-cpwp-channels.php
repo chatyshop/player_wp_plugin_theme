@@ -2,11 +2,22 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
+/**
+ * Handles Creator Channels registration, routing, and user metadata.
+ */
 final class CPWP_Channels {
+	/** Meta key storing the channel data */
 	const META = '_cpwp_creator_channel';
+	
+	/** Meta key storing the channels followed by a user */
 	const FOLLOWING_META = '_cpwp_followed_channels';
+	
+	/** Meta key storing the followers of a channel */
 	const FOLLOWERS_META = '_cpwp_channel_followers';
 
+	/**
+	 * Registers rewrite rules for channel pages.
+	 */
 	public static function register_routes() {
 		if ( 'creator_platform' !== CPWP_Settings::get( 'site_type' ) ) return;
 		add_rewrite_rule( '^channel/([^/]+)/?$', 'index.php?cpwp_channel=$matches[1]', 'top' );
@@ -71,9 +82,38 @@ final class CPWP_Channels {
 		return is_array( $value ) ? $value : array();
 	}
 
+	/**
+	 * Saves channel settings from the frontend user profile request.
+	 *
+	 * @return array Array with [error, success_message]
+	 */
 	public static function save_from_request() {
 		if ( ! CPWP_Settings::get( 'enable_creator_channels' ) || ! is_user_logged_in() ) return array( __( 'Creator channels are unavailable.', 'cp-wp-plugin' ), '' );
-		$existing = self::get();
+		if ( ! isset( $_POST['cpwp_channel_nonce'] ) || ! wp_verify_nonce( wp_unslash( $_POST['cpwp_channel_nonce'] ), 'cpwp_channel' ) ) {
+			return array( __( 'Security check failed. Please try again.', 'cp-wp-plugin' ), '' );
+		}
+		
+		$channel = self::extract_and_validate_channel_data( self::get() );
+		if ( is_wp_error( $channel ) ) return array( $channel->get_error_message(), '' );
+
+		$stored = $channel;
+		foreach ( array( 'storage_access_key', 'storage_secret_key' ) as $key ) $stored[ $key ] = CPWP_Security::encrypt( $stored[ $key ] );
+		update_user_meta( get_current_user_id(), self::META, $stored );
+		
+		$user = get_userdata( get_current_user_id() );
+		$user->add_cap( 'upload_files' );
+		$user->add_cap( 'edit_cp_videos' );
+		$user->add_cap( 'publish_cp_videos' );
+		return array( '', __( 'Your creator channel has been saved.', 'cp-wp-plugin' ) );
+	}
+
+	/**
+	 * Extracts and validates channel data from $_POST.
+	 *
+	 * @param array $existing Existing channel data.
+	 * @return array|WP_Error Validated array or WP_Error.
+	 */
+	private static function extract_and_validate_channel_data( $existing ) {
 		$channel = array(
 			'name' => sanitize_text_field( wp_unslash( $_POST['channel_name'] ?? '' ) ),
 			'slug' => sanitize_title( wp_unslash( $_POST['channel_name'] ?? '' ) ),
@@ -94,16 +134,9 @@ final class CPWP_Channels {
 		);
 		if ( ! $channel['storage_access_key'] ) $channel['storage_access_key'] = $existing['storage_access_key'] ?? '';
 		if ( ! $channel['storage_secret_key'] ) $channel['storage_secret_key'] = $existing['storage_secret_key'] ?? '';
-		if ( ! $channel['name'] || ! $channel['storage_endpoint'] || ! $channel['storage_bucket'] || ! $channel['storage_public_url'] || ! $channel['storage_access_key'] || ! $channel['storage_secret_key'] ) return array( __( 'Channel name and complete storage settings are required.', 'cp-wp-plugin' ), '' );
-		if ( ! self::safe_url( $channel['storage_endpoint'] ) || ! self::safe_url( $channel['storage_public_url'] ) ) return array( __( 'Storage endpoint and public URL must use safe HTTPS URLs.', 'cp-wp-plugin' ), '' );
-		$stored = $channel;
-		foreach ( array( 'storage_access_key', 'storage_secret_key' ) as $key ) $stored[ $key ] = CPWP_Security::encrypt( $stored[ $key ] );
-		update_user_meta( get_current_user_id(), self::META, $stored );
-		$user = get_userdata( get_current_user_id() );
-		$user->add_cap( 'upload_files' );
-		$user->add_cap( 'edit_cp_videos' );
-		$user->add_cap( 'publish_cp_videos' );
-		return array( '', __( 'Your creator channel has been saved.', 'cp-wp-plugin' ) );
+		if ( ! $channel['name'] || ! $channel['storage_endpoint'] || ! $channel['storage_bucket'] || ! $channel['storage_public_url'] || ! $channel['storage_access_key'] || ! $channel['storage_secret_key'] ) return new WP_Error( 'missing_fields', __( 'Channel name and complete storage settings are required.', 'cp-wp-plugin' ) );
+		if ( ! self::safe_url( $channel['storage_endpoint'] ) || ! self::safe_url( $channel['storage_public_url'] ) ) return new WP_Error( 'invalid_url', __( 'Storage endpoint and public URL must use safe HTTPS URLs.', 'cp-wp-plugin' ) );
+		return $channel;
 	}
 
 	public static function render_form() {
@@ -152,10 +185,53 @@ final class CPWP_Channels {
 		wp_send_json_success( array( 'upload_url' => $url, 'public_url' => trailingslashit( $channel['storage_public_url'] ) . $key, 'content_type' => $type ) );
 	}
 
+	/**
+	 * Generates an AWS Signature V4 presigned PUT URL for browser uploads to S3-compatible storage.
+	 *
+	 * @param array  $s    Storage configuration array.
+	 * @param string $key  The object key path.
+	 * @param string $type The file MIME type.
+	 * @return string|WP_Error The presigned URL or error.
+	 */
 	private static function presigned_put_url( $s, $key, $type ) {
-		if ( ! self::safe_url( $s['storage_endpoint'] ?? '' ) ) return new WP_Error( 'invalid_storage', __( 'Invalid channel storage.', 'cp-wp-plugin' ) );
-		$endpoint=untrailingslashit($s['storage_endpoint']); $bucket=$s['storage_bucket']; $region=$s['storage_region']?:'auto'; $access=$s['storage_access_key']; $secret=$s['storage_secret_key']; $host=wp_parse_url($endpoint,PHP_URL_HOST); $now=gmdate('Ymd\THis\Z'); $date=gmdate('Ymd'); $scope="{$date}/{$region}/s3/aws4_request"; $path='/'.rawurlencode($bucket).'/'.str_replace('%2F','/',rawurlencode($key));
-		$query=array('X-Amz-Algorithm'=>'AWS4-HMAC-SHA256','X-Amz-Credential'=>$access.'/'.$scope,'X-Amz-Date'=>$now,'X-Amz-Expires'=>'900','X-Amz-SignedHeaders'=>'content-type;host'); ksort($query); $canonical=http_build_query($query,'','&',PHP_QUERY_RFC3986); $headers='content-type:'.$type."\nhost:".$host."\n"; $request="PUT\n{$path}\n{$canonical}\n{$headers}\ncontent-type;host\nUNSIGNED-PAYLOAD"; $string="AWS4-HMAC-SHA256\n{$now}\n{$scope}\n".hash('sha256',$request); $sign=hash_hmac('sha256','aws4_request',hash_hmac('sha256','s3',hash_hmac('sha256',$region,hash_hmac('sha256',$date,'AWS4'.$secret,true),true),true),true); $query['X-Amz-Signature']=hash_hmac('sha256',$string,$sign); return $endpoint.$path.'?'.http_build_query($query,'','&',PHP_QUERY_RFC3986);
+		if ( ! self::safe_url( $s['storage_endpoint'] ?? '' ) ) {
+			return new WP_Error( 'invalid_storage', __( 'Invalid channel storage.', 'cp-wp-plugin' ) );
+		}
+		
+		$endpoint = untrailingslashit( $s['storage_endpoint'] );
+		$bucket   = $s['storage_bucket'];
+		$region   = $s['storage_region'] ?: 'auto';
+		$access   = $s['storage_access_key'];
+		$secret   = $s['storage_secret_key'];
+		$host     = wp_parse_url( $endpoint, PHP_URL_HOST );
+		
+		$now   = gmdate( 'Ymd\THis\Z' );
+		$date  = gmdate( 'Ymd' );
+		$scope = "{$date}/{$region}/s3/aws4_request";
+		$path  = '/' . rawurlencode( $bucket ) . '/' . str_replace( '%2F', '/', rawurlencode( $key ) );
+		
+		$query = array(
+			'X-Amz-Algorithm' => 'AWS4-HMAC-SHA256',
+			'X-Amz-Credential' => $access . '/' . $scope,
+			'X-Amz-Date' => $now,
+			'X-Amz-Expires' => '900',
+			'X-Amz-SignedHeaders' => 'content-type;host'
+		);
+		ksort( $query );
+		$canonical = http_build_query( $query, '', '&', PHP_QUERY_RFC3986 );
+		
+		$headers = "content-type:{$type}\nhost:{$host}\n";
+		$request = "PUT\n{$path}\n{$canonical}\n{$headers}\ncontent-type;host\nUNSIGNED-PAYLOAD";
+		$string  = "AWS4-HMAC-SHA256\n{$now}\n{$scope}\n" . hash( 'sha256', $request );
+		
+		$kDate    = hash_hmac( 'sha256', $date, 'AWS4' . $secret, true );
+		$kRegion  = hash_hmac( 'sha256', $region, $kDate, true );
+		$kService = hash_hmac( 'sha256', 's3', $kRegion, true );
+		$kSigning = hash_hmac( 'sha256', 'aws4_request', $kService, true );
+		$sign     = hash_hmac( 'sha256', $string, $kSigning );
+		
+		$query['X-Amz-Signature'] = $sign;
+		return $endpoint . $path . '?' . http_build_query( $query, '', '&', PHP_QUERY_RFC3986 );
 	}
 
 	private static function safe_url( $url ) {

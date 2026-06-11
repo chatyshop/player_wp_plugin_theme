@@ -4,7 +4,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Handles all settings registration, rendering, sanitization, and defaults.
+ */
 final class CPWP_Settings {
+	/**
+	 * Exports the settings configuration as JSON.
+	 */
 	public static function ajax_export() {
 		self::verify_ajax( 'cpwp_manage_settings' );
 		$options = self::get();
@@ -12,24 +18,35 @@ final class CPWP_Settings {
 		wp_send_json_success( array( 'settings' => $options ) );
 	}
 
+	/**
+	 * Imports settings configuration from JSON.
+	 */
 	public static function ajax_import() {
 		self::verify_ajax( 'cpwp_manage_settings' );
 		$decoded = json_decode( wp_unslash( $_POST['settings'] ?? '' ), true );
 		if ( ! is_array( $decoded ) ) wp_send_json_error( array( 'message' => __( 'Invalid settings JSON.', 'cp-wp-plugin' ) ) );
 		$existing = self::get();
-		if ( $clean['site_type'] !== $existing['site_type'] ) update_option( 'cpwp_flush_rewrites', 1 );
+		if ( isset( $decoded['site_type'] ) && $decoded['site_type'] !== $existing['site_type'] ) update_option( 'cpwp_flush_rewrites', 1 );
 		$decoded['storage_secret_key'] = $existing['storage_secret_key'];
 		$decoded['storage_access_key'] = $existing['storage_access_key'];
 		update_option( 'cpwp_settings', self::sanitize( $decoded ) );
 		wp_send_json_success();
 	}
 
+	/**
+	 * Resets settings configuration to plugin defaults.
+	 */
 	public static function ajax_reset() {
 		self::verify_ajax( 'cpwp_manage_settings' );
 		delete_option( 'cpwp_settings' );
 		wp_send_json_success();
 	}
 
+	/**
+	 * Defines the default settings options.
+	 *
+	 * @return array The default array of settings keys and values.
+	 */
 	public static function defaults() {
 		return array(
 			'site_type' => 'creator_platform',
@@ -172,15 +189,40 @@ final class CPWP_Settings {
 		);
 	}
 
+	/**
+	 * Sanitizes all settings before saving to the database.
+	 *
+	 * @param array $input The raw input array.
+	 * @return array The sanitized array.
+	 */
 	public static function sanitize( $input ) {
 		$defaults = self::defaults();
 		$clean = array();
+		
+		$clean = self::sanitize_text_and_urls( $clean, $input );
+		$clean = self::sanitize_core_settings( $clean, $input, $defaults );
+		$clean = self::sanitize_monetization_settings( $clean, $input );
+		$clean = self::sanitize_home_settings( $clean, $input );
+		$clean = self::sanitize_boolean_settings( $clean, $input );
+		
+		if ( ! empty( $input['apply_site_type_preset'] ) ) {
+			$clean = array_merge( $clean, self::site_type_presets()[ $clean['site_type'] ] );
+		}
+		
+		return $clean;
+	}
+
+	private static function sanitize_text_and_urls( $clean, $input ) {
 		foreach ( array( 'platform_name', 'tagline', 'footer_text', 'player_version', 'storage_bucket', 'storage_region', 'storage_access_key', 'home_section_order', 'home_trending_title', 'home_latest_title', 'home_most_viewed_title', 'home_category_ids', 'home_hero_title', 'home_hero_button', 'home_promo_title', 'home_promo_button', 'ad_publisher_id', 'subscription_plugin', 'pricing_free_price', 'pricing_pro_price', 'pricing_premium_price' ) as $key ) {
 			$clean[ $key ] = sanitize_text_field( $input[ $key ] ?? '' );
 		}
 		foreach ( array( 'logo_url', 'custom_cdn', 'facebook_url', 'x_url', 'storage_endpoint', 'storage_public_url', 'home_promo_url', 'subscription_checkout_url', 'pricing_free_url', 'pricing_pro_url', 'pricing_premium_url' ) as $key ) {
 			$clean[ $key ] = esc_url_raw( $input[ $key ] ?? '' );
 		}
+		return $clean;
+	}
+
+	private static function sanitize_core_settings( $clean, $input, $defaults ) {
 		$clean['accent_color'] = sanitize_hex_color( $input['accent_color'] ?? '' ) ?: $defaults['accent_color'];
 		$site_type = sanitize_key( $input['site_type'] ?? $defaults['site_type'] );
 		$clean['site_type'] = array_key_exists( $site_type, self::site_types() ) ? $site_type : $defaults['site_type'];
@@ -188,27 +230,46 @@ final class CPWP_Settings {
 		$clean['default_preload'] = in_array( $preload, array( 'none', 'metadata', 'auto' ), true ) ? $preload : 'metadata';
 		$provider = sanitize_key( $input['storage_provider'] ?? 'direct' );
 		$clean['storage_provider'] = in_array( $provider, array( 'direct', 'r2', 's3', 's3_compatible' ), true ) ? $provider : 'direct';
+		
+		$existing = self::get();
+		$clean['storage_secret_key'] = ! empty( $input['storage_secret_key'] ) ? sanitize_text_field( $input['storage_secret_key'] ) : $existing['storage_secret_key'];
+		
+		return $clean;
+	}
+
+	private static function sanitize_monetization_settings( $clean, $input ) {
 		$ad_provider = sanitize_key( $input['ad_provider'] ?? 'custom_html' );
 		$clean['ad_provider'] = in_array( $ad_provider, array( 'adsense', 'ad_manager', 'affiliate', 'custom_html', 'custom_javascript' ), true ) ? $ad_provider : 'custom_html';
 		foreach ( array_keys( CPWP_Monetization::slots() ) as $slot ) $clean['ad_' . $slot] = CPWP_Monetization::sanitize_code( $input['ad_' . $slot] ?? '' );
 		foreach ( array( 'ad_preroll_url', 'ad_postroll_url' ) as $key ) $clean[ $key ] = esc_url_raw( $input[ $key ] ?? '' );
-		$existing = self::get();
-		$clean['storage_secret_key'] = ! empty( $input['storage_secret_key'] ) ? sanitize_text_field( $input['storage_secret_key'] ) : $existing['storage_secret_key'];
+		return $clean;
+	}
+
+	private static function sanitize_home_settings( $clean, $input ) {
 		$clean['home_featured_video'] = absint( $input['home_featured_video'] ?? 0 );
-		if ( isset( $input['home_category_ids_array'] ) && is_array( $input['home_category_ids_array'] ) ) $clean['home_category_ids'] = implode( ',', array_map( 'absint', $input['home_category_ids_array'] ) );
+		if ( isset( $input['home_category_ids_array'] ) && is_array( $input['home_category_ids_array'] ) ) {
+			$clean['home_category_ids'] = implode( ',', array_map( 'absint', $input['home_category_ids_array'] ) );
+		}
+		
 		$allowed_sections = array( 'categories', 'trending', 'latest', 'most_viewed', 'category_rows', 'promo' );
 		$order = array_values( array_intersect( array_map( 'sanitize_key', explode( ',', $clean['home_section_order'] ) ), $allowed_sections ) );
 		$clean['home_section_order'] = implode( ',', array_unique( array_merge( $order, array_diff( $allowed_sections, $order ) ) ) );
+		
 		$clean['home_videos_per_section'] = min( 24, max( 1, absint( $input['home_videos_per_section'] ?? 8 ) ) );
 		$clean['home_hero_description'] = sanitize_textarea_field( $input['home_hero_description'] ?? '' );
 		$clean['home_promo_content'] = sanitize_textarea_field( $input['home_promo_content'] ?? '' );
+		
 		foreach ( array( 'pricing_free_features', 'pricing_pro_features', 'pricing_premium_features' ) as $key ) {
 			$clean[ $key ] = sanitize_textarea_field( $input[ $key ] ?? '' );
 		}
+		
+		return $clean;
+	}
+
+	private static function sanitize_boolean_settings( $clean, $input ) {
 		foreach ( array( 'default_muted', 'show_sharing', 'show_transcript', 'show_related', 'enable_comments', 'enable_analytics', 'enable_login', 'enable_registration', 'comments_login_only', 'enable_password_recovery', 'enable_email_verification', 'enable_password_confirmation', 'enable_login_rate_limit', 'enable_auth_captcha', 'enable_account_deletion', 'enable_creator_channels', 'enable_reactions', 'enable_favorites_watch_later', 'enable_playlists', 'enable_continue_watching', 'enable_comment_reactions', 'enable_monetization', 'enable_creator_monetization', 'home_show_categories', 'home_show_trending', 'home_show_latest', 'home_show_most_viewed', 'home_show_category_rows', 'home_show_promo', 'enable_subscriptions', 'enable_pricing_page' ) as $key ) {
 			$clean[ $key ] = ! empty( $input[ $key ] );
 		}
-		if ( ! empty( $input['apply_site_type_preset'] ) ) $clean = array_merge( $clean, self::site_type_presets()[ $clean['site_type'] ] );
 		return $clean;
 	}
 
@@ -274,54 +335,71 @@ final class CPWP_Settings {
 		<?php
 	}
 
+	/**
+	 * Renders a settings section with all its fields.
+	 *
+	 * @param string $title   The section title.
+	 * @param array  $fields  Array of key => label for the fields to render.
+	 * @param array  $options The current options array.
+	 */
 	private static function section( $title, $fields, $options ) {
 		echo '<div class="cpwp-settings-section"><h2>' . esc_html( $title ) . '</h2>';
 		foreach ( $fields as $key => $label ) {
 			echo '<label><span>' . esc_html( $label ) . '</span>';
-			if ( in_array( $key, array( 'default_muted', 'show_sharing', 'show_transcript', 'show_related', 'enable_comments', 'enable_analytics', 'enable_login', 'enable_registration', 'comments_login_only', 'enable_password_recovery', 'enable_email_verification', 'enable_password_confirmation', 'enable_login_rate_limit', 'enable_auth_captcha', 'enable_account_deletion', 'enable_creator_channels', 'enable_reactions', 'enable_favorites_watch_later', 'enable_playlists', 'enable_continue_watching', 'enable_comment_reactions', 'enable_monetization', 'enable_creator_monetization', 'home_show_categories', 'home_show_trending', 'home_show_latest', 'home_show_most_viewed', 'home_show_category_rows', 'home_show_promo', 'enable_subscriptions' ), true ) ) {
-				printf( '<input type="checkbox" name="cpwp_settings[%s]" value="1" %s>', esc_attr( $key ), checked( ! empty( $options[ $key ] ), true, false ) );
-			} elseif ( 'accent_color' === $key ) {
-				printf( '<input type="color" name="cpwp_settings[%s]" value="%s">', esc_attr( $key ), esc_attr( $options[ $key ] ) );
-			} elseif ( 'default_preload' === $key ) {
-				echo '<select name="cpwp_settings[default_preload]">';
-				foreach ( array( 'metadata', 'auto', 'none' ) as $value ) printf( '<option value="%s" %s>%s</option>', esc_attr( $value ), selected( $options[ $key ], $value, false ), esc_html( ucfirst( $value ) ) );
-				echo '</select>';
-			} elseif ( 'storage_provider' === $key ) {
-				echo '<select name="cpwp_settings[storage_provider]">';
-				foreach ( array( 'direct' => 'Direct public URL', 'r2' => 'Cloudflare R2', 's3' => 'Amazon S3', 's3_compatible' => 'S3-compatible' ) as $value => $name ) printf( '<option value="%s" %s>%s</option>', esc_attr( $value ), selected( $options[ $key ], $value, false ), esc_html( $name ) );
-				echo '</select>';
-			} elseif ( 'ad_provider' === $key ) {
-				echo '<select name="cpwp_settings[ad_provider]">';
-				foreach ( array( 'adsense' => 'Google AdSense', 'ad_manager' => 'Google Ad Manager', 'affiliate' => 'Affiliate banners', 'custom_html' => 'Custom HTML', 'custom_javascript' => 'Custom JavaScript' ) as $value => $name ) printf( '<option value="%s" %s>%s</option>', esc_attr( $value ), selected( $options[ $key ], $value, false ), esc_html( $name ) );
-				echo '</select>';
-			} elseif ( 'subscription_plugin' === $key ) {
-				echo '<select name="cpwp_settings[subscription_plugin]">';
-				foreach ( array( 'pmpro' => 'Paid Memberships Pro', 'woocommerce' => 'WooCommerce Memberships', 'memberpress' => 'MemberPress', 'roles' => 'Native WP Role Gating' ) as $value => $name ) printf( '<option value="%s" %s>%s</option>', esc_attr( $value ), selected( $options[ $key ], $value, false ), esc_html( $name ) );
-				echo '</select>';
-			} elseif ( 'storage_secret_key' === $key ) {
-				printf( '<input type="password" name="cpwp_settings[%s]" value="" placeholder="%s" autocomplete="new-password">', esc_attr( $key ), esc_attr( $options[ $key ] ? __( 'Secret saved; leave blank to keep it', 'cp-wp-plugin' ) : '' ) );
-			} elseif ( 'home_section_order' === $key ) {
-				$order = array_filter( array_map( 'sanitize_key', explode( ',', $options[ $key ] ) ) );
-				echo '<ul class="cpwp-sortable" id="cpwp-section-order">';
-				foreach ( $order as $item ) printf( '<li draggable="true" data-value="%s">%s</li>', esc_attr( $item ), esc_html( ucwords( str_replace( '_', ' ', $item ) ) ) );
-				echo '</ul><input type="hidden" name="cpwp_settings[home_section_order]" value="' . esc_attr( $options[ $key ] ) . '">';
-			} elseif ( 'home_featured_video' === $key ) {
-				echo '<select name="cpwp_settings[home_featured_video]"><option value="0">' . esc_html__( 'Automatic most viewed', 'cp-wp-plugin' ) . '</option>';
-				foreach ( get_posts( array( 'post_type' => 'cp_video', 'posts_per_page' => 100 ) ) as $video ) printf( '<option value="%d" %s>%s</option>', $video->ID, selected( $options[ $key ], $video->ID, false ), esc_html( get_the_title( $video ) ) );
-				echo '</select>';
-			} elseif ( 'home_category_ids' === $key ) {
-				echo '<select multiple name="cpwp_settings[home_category_ids_array][]">';
-				$selected = array_map( 'absint', explode( ',', $options[ $key ] ) );
-				foreach ( get_categories( array( 'hide_empty' => false ) ) as $category ) printf( '<option value="%d" %s>%s</option>', $category->term_id, selected( in_array( $category->term_id, $selected, true ), true, false ), esc_html( $category->name ) );
-				echo '</select>';
-			} elseif ( in_array( $key, array_merge( array( 'home_hero_description', 'home_promo_content', 'pricing_free_features', 'pricing_pro_features', 'pricing_premium_features' ), array_map( function ( $slot ) { return 'ad_' . $slot; }, array_keys( CPWP_Monetization::slots() ) ) ), true ) ) {
-				printf( '<textarea name="cpwp_settings[%s]" rows="4">%s</textarea>', esc_attr( $key ), esc_textarea( $options[ $key ] ) );
-			} else {
-				printf( '<input type="text" name="cpwp_settings[%s]" value="%s">', esc_attr( $key ), esc_attr( $options[ $key ] ) );
-			}
+			self::render_field( $key, $options );
 			echo '</label>';
 		}
 		echo '</div>';
+	}
+
+	/**
+	 * Renders an individual form field based on its key.
+	 *
+	 * @param string $key     The setting key.
+	 * @param array  $options The current options array.
+	 */
+	private static function render_field( $key, $options ) {
+		if ( in_array( $key, array( 'default_muted', 'show_sharing', 'show_transcript', 'show_related', 'enable_comments', 'enable_analytics', 'enable_login', 'enable_registration', 'comments_login_only', 'enable_password_recovery', 'enable_email_verification', 'enable_password_confirmation', 'enable_login_rate_limit', 'enable_auth_captcha', 'enable_account_deletion', 'enable_creator_channels', 'enable_reactions', 'enable_favorites_watch_later', 'enable_playlists', 'enable_continue_watching', 'enable_comment_reactions', 'enable_monetization', 'enable_creator_monetization', 'home_show_categories', 'home_show_trending', 'home_show_latest', 'home_show_most_viewed', 'home_show_category_rows', 'home_show_promo', 'enable_subscriptions' ), true ) ) {
+			printf( '<input type="checkbox" name="cpwp_settings[%s]" value="1" %s>', esc_attr( $key ), checked( ! empty( $options[ $key ] ), true, false ) );
+		} elseif ( 'accent_color' === $key ) {
+			printf( '<input type="color" name="cpwp_settings[%s]" value="%s">', esc_attr( $key ), esc_attr( $options[ $key ] ) );
+		} elseif ( 'default_preload' === $key ) {
+			echo '<select name="cpwp_settings[default_preload]">';
+			foreach ( array( 'metadata', 'auto', 'none' ) as $value ) printf( '<option value="%s" %s>%s</option>', esc_attr( $value ), selected( $options[ $key ], $value, false ), esc_html( ucfirst( $value ) ) );
+			echo '</select>';
+		} elseif ( 'storage_provider' === $key ) {
+			echo '<select name="cpwp_settings[storage_provider]">';
+			foreach ( array( 'direct' => 'Direct public URL', 'r2' => 'Cloudflare R2', 's3' => 'Amazon S3', 's3_compatible' => 'S3-compatible' ) as $value => $name ) printf( '<option value="%s" %s>%s</option>', esc_attr( $value ), selected( $options[ $key ], $value, false ), esc_html( $name ) );
+			echo '</select>';
+		} elseif ( 'ad_provider' === $key ) {
+			echo '<select name="cpwp_settings[ad_provider]">';
+			foreach ( array( 'adsense' => 'Google AdSense', 'ad_manager' => 'Google Ad Manager', 'affiliate' => 'Affiliate banners', 'custom_html' => 'Custom HTML', 'custom_javascript' => 'Custom JavaScript' ) as $value => $name ) printf( '<option value="%s" %s>%s</option>', esc_attr( $value ), selected( $options[ $key ], $value, false ), esc_html( $name ) );
+			echo '</select>';
+		} elseif ( 'subscription_plugin' === $key ) {
+			echo '<select name="cpwp_settings[subscription_plugin]">';
+			foreach ( array( 'pmpro' => 'Paid Memberships Pro', 'woocommerce' => 'WooCommerce Memberships', 'memberpress' => 'MemberPress', 'roles' => 'Native WP Role Gating' ) as $value => $name ) printf( '<option value="%s" %s>%s</option>', esc_attr( $value ), selected( $options[ $key ], $value, false ), esc_html( $name ) );
+			echo '</select>';
+		} elseif ( 'storage_secret_key' === $key ) {
+			printf( '<input type="password" name="cpwp_settings[%s]" value="" placeholder="%s" autocomplete="new-password">', esc_attr( $key ), esc_attr( $options[ $key ] ? __( 'Secret saved; leave blank to keep it', 'cp-wp-plugin' ) : '' ) );
+		} elseif ( 'home_section_order' === $key ) {
+			$order = array_filter( array_map( 'sanitize_key', explode( ',', $options[ $key ] ) ) );
+			echo '<ul class="cpwp-sortable" id="cpwp-section-order">';
+			foreach ( $order as $item ) printf( '<li draggable="true" data-value="%s">%s</li>', esc_attr( $item ), esc_html( ucwords( str_replace( '_', ' ', $item ) ) ) );
+			echo '</ul><input type="hidden" name="cpwp_settings[home_section_order]" value="' . esc_attr( $options[ $key ] ) . '">';
+		} elseif ( 'home_featured_video' === $key ) {
+			echo '<select name="cpwp_settings[home_featured_video]"><option value="0">' . esc_html__( 'Automatic most viewed', 'cp-wp-plugin' ) . '</option>';
+			foreach ( get_posts( array( 'post_type' => 'cp_video', 'posts_per_page' => 100 ) ) as $video ) printf( '<option value="%d" %s>%s</option>', $video->ID, selected( $options[ $key ], $video->ID, false ), esc_html( get_the_title( $video ) ) );
+			echo '</select>';
+		} elseif ( 'home_category_ids' === $key ) {
+			echo '<select multiple name="cpwp_settings[home_category_ids_array][]">';
+			$selected = array_map( 'absint', explode( ',', $options[ $key ] ) );
+			foreach ( get_categories( array( 'hide_empty' => false ) ) as $category ) printf( '<option value="%d" %s>%s</option>', $category->term_id, selected( in_array( $category->term_id, $selected, true ), true, false ), esc_html( $category->name ) );
+			echo '</select>';
+		} elseif ( in_array( $key, array_merge( array( 'home_hero_description', 'home_promo_content', 'pricing_free_features', 'pricing_pro_features', 'pricing_premium_features' ), array_map( function ( $slot ) { return 'ad_' . $slot; }, array_keys( CPWP_Monetization::slots() ) ) ), true ) ) {
+			printf( '<textarea name="cpwp_settings[%s]" rows="4">%s</textarea>', esc_attr( $key ), esc_textarea( $options[ $key ] ) );
+		} else {
+			printf( '<input type="text" name="cpwp_settings[%s]" value="%s">', esc_attr( $key ), esc_attr( $options[ $key ] ) );
+		}
 	}
 
 	private static function verify_ajax( $action ) {

@@ -2,10 +2,19 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
+/**
+ * Handles Creator Platform features and API routes.
+ */
 final class CPWP_Creator_Platform {
+	/** User meta key for verification status */
 	const VERIFY_STATUS = '_cpwp_channel_verification_status';
+	
+	/** User meta key for subscription preferences */
 	const SUB_PREFS = '_cpwp_channel_subscription_preferences';
 
+	/**
+	 * Registers REST API routes for creator features.
+	 */
 	public static function register_routes() {
 		if ( ! CPWP_Settings::get( 'enable_creator_channels' ) ) return;
 		register_rest_route( 'cpwp/v1', '/creator/video/(?P<video_id>\d+)', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'manage_video' ), 'permission_callback' => 'is_user_logged_in' ) );
@@ -13,11 +22,25 @@ final class CPWP_Creator_Platform {
 		register_rest_route( 'cpwp/v1', '/channels/(?P<owner_id>\d+)/preferences', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'preferences' ), 'permission_callback' => 'is_user_logged_in' ) );
 	}
 
+	/**
+	 * Processes channel verification requests from the frontend profile form.
+	 *
+	 * @return array|null Array with [error, success_message] or null.
+	 */
 	public static function process_profile() {
-		if ( ! empty( $_POST['cpwp_request_verification'] ) ) { update_user_meta( get_current_user_id(), self::VERIFY_STATUS, 'pending' ); return array( '', __( 'Channel verification request submitted.', 'cp-wp-plugin' ) ); }
+		if ( ! empty( $_POST['cpwp_request_verification'] ) ) {
+			if ( ! isset( $_POST['cpwp_auth_nonce'] ) || ! wp_verify_nonce( wp_unslash( $_POST['cpwp_auth_nonce'] ), 'cpwp_profile' ) ) {
+				return array( __( 'Security check failed. Please try again.', 'cp-wp-plugin' ), '' );
+			}
+			update_user_meta( get_current_user_id(), self::VERIFY_STATUS, 'pending' );
+			return array( '', __( 'Channel verification request submitted.', 'cp-wp-plugin' ) );
+		}
 		return null;
 	}
 
+	/**
+	 * Renders the creator profile and analytics panels on the frontend.
+	 */
 	public static function render_profile() {
 		if ( ! CPWP_Settings::get( 'enable_creator_channels' ) || ! CPWP_Channels::get() ) return;
 		$user_id = get_current_user_id(); $videos = self::videos( $user_id ); $views = $watch = $completions = 0;
@@ -29,6 +52,14 @@ final class CPWP_Creator_Platform {
 		echo '<p><button class="cp-button" data-cpwp-report="copyright_dispute" data-target-id="' . esc_attr( $user_id ) . '">Submit copyright claim dispute</button></p>';
 	}
 
+	/**
+	 * Manages a creator video via REST API request.
+	 *
+	 * Handles actions: toggle_status, delete, update.
+	 * 
+	 * @param WP_REST_Request $request The API request object.
+	 * @return WP_REST_Response|WP_Error Response or error.
+	 */
 	public static function manage_video( WP_REST_Request $request ) {
 		$id = absint( $request['video_id'] ); if ( 'cp_video' !== get_post_type( $id ) || absint( get_post_field( 'post_author', $id ) ) !== get_current_user_id() ) return new WP_Error( 'forbidden', 'Video unavailable.', array( 'status' => 403 ) );
 		$action = sanitize_key( $request['action'] );
@@ -43,58 +74,68 @@ final class CPWP_Creator_Platform {
 			if ( isset( $request['allow_comments'] ) ) $post_data['comment_status'] = ! empty( $request['allow_comments'] ) ? 'open' : 'closed';
 			wp_update_post( $post_data );
 
-			if ( isset( $request['accent_color'] ) ) update_post_meta( $id, '_cpwp_accent_color', sanitize_hex_color( $request['accent_color'] ) );
-			if ( isset( $request['autoplay'] ) ) update_post_meta( $id, '_cpwp_autoplay', ! empty( $request['autoplay'] ) );
-			if ( isset( $request['loop'] ) ) update_post_meta( $id, '_cpwp_loop', ! empty( $request['loop'] ) );
-			if ( isset( $request['muted'] ) ) update_post_meta( $id, '_cpwp_muted', ! empty( $request['muted'] ) );
-			if ( isset( $request['preload'] ) ) update_post_meta( $id, '_cpwp_preload', sanitize_key( $request['preload'] ) );
-			if ( isset( $request['poster_url'] ) ) update_post_meta( $id, '_cpwp_poster_url', esc_url_raw( $request['poster_url'] ) );
-			if ( isset( $request['video_url'] ) ) update_post_meta( $id, '_cpwp_mp4', esc_url_raw( $request['video_url'] ) );
-			if ( isset( $request['chapters'] ) ) {
-				$chapters = json_decode( $request['chapters'], true );
-				update_post_meta( $id, '_cpwp_chapters', is_array( $chapters ) ? $chapters : array() );
-			}
-			if ( isset( $request['subtitles'] ) ) {
-				$subtitles = json_decode( $request['subtitles'], true );
-				update_post_meta( $id, '_cpwp_subtitles', is_array( $subtitles ) ? $subtitles : array() );
-			}
-
-			// Save taxonomies based on site type
-			$site_type = CPWP_Settings::get( 'site_type' );
-			if ( 'creator_platform' === $site_type ) {
-				if ( isset( $request['video_genre'] ) ) {
-					wp_set_post_terms( $id, array( absint( $request['video_genre'] ) ), 'cp_genre' );
-				}
-				if ( isset( $request['video_topic'] ) ) {
-					wp_set_post_terms( $id, array( absint( $request['video_topic'] ) ), 'cp_topic' );
-				}
-				if ( isset( $request['video_tags'] ) ) {
-					wp_set_post_terms( $id, sanitize_text_field( $request['video_tags'] ), 'cp_tag' );
-				}
-			} elseif ( 'gaming' === $site_type ) {
-				if ( isset( $request['video_genre'] ) ) {
-					wp_set_post_terms( $id, array( absint( $request['video_genre'] ) ), 'cp_genre' );
-				}
-				if ( isset( $request['video_game'] ) ) {
-					wp_set_post_terms( $id, array( absint( $request['video_game'] ) ), 'cp_game' );
-				}
-				if ( isset( $request['video_tags'] ) ) {
-					wp_set_post_terms( $id, sanitize_text_field( $request['video_tags'] ), 'cp_tag' );
-				}
-			} elseif ( 'podcast' === $site_type ) {
-				if ( isset( $request['video_genre'] ) ) {
-					wp_set_post_terms( $id, array( absint( $request['video_genre'] ) ), 'cp_genre' );
-				}
-				if ( isset( $request['video_topic'] ) ) {
-					wp_set_post_terms( $id, array( absint( $request['video_topic'] ) ), 'cp_topic' );
-				}
-			}
+			self::update_video_metadata( $id, $request );
+			self::update_video_taxonomies( $id, $request );
 		} else {
 			return new WP_Error( 'invalid_action', 'Invalid action.', array( 'status' => 400 ) );
 		}
 		CPWP_Moderation::log( 'creator_video_' . $action, get_current_user_id(), $id ); return rest_ensure_response( array( 'success' => true ) );
 	}
 
+	/**
+	 * Updates video metadata fields from request.
+	 *
+	 * @param int $id The video post ID.
+	 * @param WP_REST_Request $request The API request object.
+	 */
+	private static function update_video_metadata( $id, $request ) {
+		if ( isset( $request['accent_color'] ) ) update_post_meta( $id, '_cpwp_accent_color', sanitize_hex_color( $request['accent_color'] ) );
+		if ( isset( $request['autoplay'] ) ) update_post_meta( $id, '_cpwp_autoplay', ! empty( $request['autoplay'] ) );
+		if ( isset( $request['loop'] ) ) update_post_meta( $id, '_cpwp_loop', ! empty( $request['loop'] ) );
+		if ( isset( $request['muted'] ) ) update_post_meta( $id, '_cpwp_muted', ! empty( $request['muted'] ) );
+		if ( isset( $request['preload'] ) ) update_post_meta( $id, '_cpwp_preload', sanitize_key( $request['preload'] ) );
+		if ( isset( $request['poster_url'] ) ) update_post_meta( $id, '_cpwp_poster_url', esc_url_raw( $request['poster_url'] ) );
+		if ( isset( $request['video_url'] ) ) update_post_meta( $id, '_cpwp_mp4', esc_url_raw( $request['video_url'] ) );
+		if ( isset( $request['chapters'] ) ) {
+			$chapters = json_decode( $request['chapters'], true );
+			update_post_meta( $id, '_cpwp_chapters', is_array( $chapters ) ? $chapters : array() );
+		}
+		if ( isset( $request['subtitles'] ) ) {
+			$subtitles = json_decode( $request['subtitles'], true );
+			update_post_meta( $id, '_cpwp_subtitles', is_array( $subtitles ) ? $subtitles : array() );
+		}
+	}
+
+	/**
+	 * Updates video taxonomies based on active site type.
+	 *
+	 * @param int $id The video post ID.
+	 * @param WP_REST_Request $request The API request object.
+	 */
+	private static function update_video_taxonomies( $id, $request ) {
+		$site_type = CPWP_Settings::get( 'site_type' );
+		if ( 'creator_platform' === $site_type ) {
+			if ( isset( $request['video_genre'] ) ) wp_set_post_terms( $id, array( absint( $request['video_genre'] ) ), 'cp_genre' );
+			if ( isset( $request['video_topic'] ) ) wp_set_post_terms( $id, array( absint( $request['video_topic'] ) ), 'cp_topic' );
+			if ( isset( $request['video_tags'] ) ) wp_set_post_terms( $id, sanitize_text_field( $request['video_tags'] ), 'cp_tag' );
+		} elseif ( 'gaming' === $site_type ) {
+			if ( isset( $request['video_genre'] ) ) wp_set_post_terms( $id, array( absint( $request['video_genre'] ) ), 'cp_genre' );
+			if ( isset( $request['video_game'] ) ) wp_set_post_terms( $id, array( absint( $request['video_game'] ) ), 'cp_game' );
+			if ( isset( $request['video_tags'] ) ) wp_set_post_terms( $id, sanitize_text_field( $request['video_tags'] ), 'cp_tag' );
+		} elseif ( 'podcast' === $site_type ) {
+			if ( isset( $request['video_genre'] ) ) wp_set_post_terms( $id, array( absint( $request['video_genre'] ) ), 'cp_genre' );
+			if ( isset( $request['video_topic'] ) ) wp_set_post_terms( $id, array( absint( $request['video_topic'] ) ), 'cp_topic' );
+		}
+	}
+
+	/**
+	 * Manages a comment via REST API request.
+	 *
+	 * Handles actions: approve, unapprove, delete.
+	 *
+	 * @param WP_REST_Request $request The API request object.
+	 * @return WP_REST_Response|WP_Error Response or error.
+	 */
 	public static function manage_comment( WP_REST_Request $request ) {
 		$comment_id = absint( $request['comment_id'] );
 		$comment = get_comment( $comment_id );
@@ -120,14 +161,33 @@ final class CPWP_Creator_Platform {
 		return rest_ensure_response( array( 'success' => true ) );
 	}
 
+	/**
+	 * Updates notification and privacy preferences for a followed channel.
+	 *
+	 * @param WP_REST_Request $request The API request object.
+	 * @return WP_REST_Response|WP_Error The updated preferences.
+	 */
 	public static function preferences( WP_REST_Request $request ) {
 		$owner = absint( $request['owner_id'] ); if ( ! in_array( $owner, CPWP_Channels::following(), true ) ) return new WP_Error( 'not_following', 'Follow this channel first.', array( 'status' => 400 ) );
 		$prefs = (array) get_user_meta( get_current_user_id(), self::SUB_PREFS, true ); $prefs[ $owner ] = array( 'private' => ! empty( $request['private'] ), 'notifications' => ! empty( $request['notifications'] ) ); update_user_meta( get_current_user_id(), self::SUB_PREFS, $prefs ); return rest_ensure_response( $prefs[ $owner ] );
 	}
 
+	/**
+	 * Retrieves an array of all registered channels, optionally filtered by search and category.
+	 *
+	 * @param string $search   Optional search term.
+	 * @param string $category Optional category filter.
+	 * @return array Array of channels.
+	 */
 	public static function channels( $search = '', $category = '' ) {
 		$result = array(); foreach ( CPWP_Site_Modules::channels() as $item ) { $channel = $item['channel']; if ( $search && false === stripos( $channel['name'] . ' ' . $channel['description'], $search ) ) continue; if ( $category && $category !== ( $channel['category'] ?? '' ) ) continue; $result[] = $item; } return $result;
 	}
 
+	/**
+	 * Retrieves videos for a given channel owner.
+	 *
+	 * @param int $owner The user ID of the channel owner.
+	 * @return WP_Post[] Array of video posts.
+	 */
 	public static function videos( $owner ) { return get_posts( array( 'post_type' => 'cp_video', 'post_status' => array( 'publish', 'draft' ), 'posts_per_page' => 200, 'author' => absint( $owner ), 'meta_key' => '_cpwp_channel_owner', 'meta_value' => absint( $owner ) ) ); }
 }
